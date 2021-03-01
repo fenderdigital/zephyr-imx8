@@ -17,14 +17,14 @@
 /* OSC/PLL is already initialized by ROM and Cortex-A53 (u-boot) */
 static void SOC_RdcInit(void)
 {
-	/* Move M4 core to specific RDC domain 1 */
+	/* Move M7 core to specific RDC domain 1 */
 	rdc_domain_assignment_t assignment = {0};
 
 	assignment.domainId = M4_DOMAIN_ID;
-	RDC_SetMasterDomainAssignment(RDC, kRDC_Master_M4, &assignment);
+	RDC_SetMasterDomainAssignment(RDC, kRDC_Master_M7, &assignment);
 
 	/*
-	 * The M4 core is running at domain 1, enable clock gate for
+	 * The M7 core is running at domain 1, enable clock gate for
 	 * Iomux to run at domain 1.
 	 */
 	CLOCK_EnableClock(kCLOCK_Iomux);
@@ -36,7 +36,7 @@ static void SOC_RdcInit(void)
 	CLOCK_EnableClock(kCLOCK_Qspi);
 
 	/*
-	 * The M4 core is running at domain 1, enable the PLL clock sources
+	 * The M7 core is running at domain 1, enable the PLL clock sources
 	 * to domain 1.
 	 */
 	/* Enable SysPLL1 to Domain 1 */
@@ -80,19 +80,19 @@ static void SOC_ClockInit(void)
 	CLOCK_SetRootMux(kCLOCK_RootAhb, kCLOCK_AhbRootmuxOsc24M);
 
 	/*
-	 * Switch AXI M4 root to 24M first in order to configure
+	 * Switch AXI M7 root to 24M first in order to configure
 	 * the SYSTEM PLL2
 	 */
-	CLOCK_SetRootMux(kCLOCK_RootM4, kCLOCK_M4RootmuxOsc24M);
+	CLOCK_SetRootMux(kCLOCK_RootM7, kCLOCK_M7RootmuxOsc24M);
 
 	/* Init AUDIO PLL1 to run at 786432000HZ */
 	CLOCK_InitAudioPll1(&g_audioPll1Config);
 	/* Init AUDIO PLL2 to run at 722534399HZ */
 	CLOCK_InitAudioPll2(&g_audioPll2Config);
 
-	CLOCK_SetRootDivider(kCLOCK_RootM4, 1U, 2U);
-	/* Switch cortex-m4 to SYSTEM PLL1 */
-	CLOCK_SetRootMux(kCLOCK_RootM4, kCLOCK_M4RootmuxSysPll1);
+	CLOCK_SetRootDivider(kCLOCK_RootM7, 1U, 2U);
+	/* Switch cortex-m7 to SYSTEM PLL1 */
+	CLOCK_SetRootMux(kCLOCK_RootM7, kCLOCK_M7RootmuxSysPll1);
 
 	CLOCK_SetRootDivider(kCLOCK_RootAhb, 1U, 1U);
 	/* Switch AHB to SYSTEM PLL1 DIV6 = 133MHZ */
@@ -113,7 +113,7 @@ static void SOC_ClockInit(void)
 
 	/*
 	 * The purpose to enable the following modules clock is to make
-	 * sure the M4 core could work normally when A53 core
+	 * sure the M7 core could work normally when A53 core
 	 * enters the low power state
 	 */
 	CLOCK_EnableClock(kCLOCK_Sim_display);
