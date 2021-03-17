@@ -48,7 +48,11 @@ static int mcux_ccm_get_subsys_rate(const struct device *dev,
 				    clock_control_subsys_t sub_system,
 				    uint32_t *rate)
 {
+#ifdef CONFIG_ARM64
+	uint32_t clock_name = (uint32_t)(uint64_t) sub_system;
+#else
 	uint32_t clock_name = (uint32_t) sub_system;
+#endif
 
 	switch (clock_name) {
 
