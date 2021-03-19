@@ -1,0 +1,13 @@
+#
+# Copyright 2022 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+config SOC_SERIES_IMX8MP_A53
+	bool "i.MX8M Plus Series (Cortex-A Cores)"
+	select ARM64
+	select SOC_FAMILY_IMX
+	select HAS_MCUX_GPT
+	help
+	  Enable support for Cortex-A Cores on i.MX8M Plus series

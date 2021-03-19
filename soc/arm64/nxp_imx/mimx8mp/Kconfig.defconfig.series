@@ -1,0 +1,19 @@
+#
+# Copyright 2022 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+if SOC_SERIES_IMX8MP_A53
+
+config SOC_SERIES
+	default "mimx8mp"
+
+config NUM_IRQS
+	int
+	# must be >= the highest interrupt number used
+	default 191
+
+source "soc/arm64/nxp_imx/mimx8mp/Kconfig.defconfig.mimx8mp_a53"
+
+endif # SOC_SERIES_IMX8MP_A53

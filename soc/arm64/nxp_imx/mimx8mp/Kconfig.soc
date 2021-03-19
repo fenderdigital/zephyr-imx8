@@ -1,0 +1,34 @@
+#
+# Copyright 2022 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+choice
+prompt "i.MX8M Plus SoC"
+depends on SOC_SERIES_IMX8MP_A53
+
+config SOC_MIMX8MP_A53
+	bool "NXP i.MX8M Plus A53 core SoC"
+	select ARM64
+	select CPU_CORTEX_A53
+	select ARM_ARCH_TIMER
+	select GIC_V3
+	select HAS_MCUX
+	select HAS_MCUX_CCM
+endchoice
+
+if SOC_SERIES_IMX8MP_A53
+
+config SOC_PART_NUMBER_MIMX8ML8DVNLZ
+	bool
+
+config SOC_PART_NUMBER_IMX8MP_A53
+	string
+	default "MIMX8ML8DVNLZ_ca53" if  SOC_PART_NUMBER_MIMX8ML8DVNLZ
+	help
+	  This string holds the full part number of the SoC. It is a hidden option
+	  that you should not set directly. The part number selection choice defines
+	  the default value for this string.
+
+endif # SOC_SERIES_IMX8MP_A53
