@@ -117,11 +117,6 @@ static void SOC_ClockInit(void)
     CLOCK_InitAudioPll1(&g_audioPll1Config); /* init AUDIO PLL1 run at 393215996HZ */
     CLOCK_InitAudioPll2(&g_audioPll2Config); /* init AUDIO PLL2 run at 361267197HZ */
 
-    /* As ROM not enables PLL3 by default, enable PLL3 to 600M if A core not set it. */
-    if (CLOCK_IsPllBypassed(CCM_ANALOG, kCLOCK_SysPll3InternalPll1BypassCtrl) == 1)
-    {
-        CLOCK_InitSysPll3(&g_sysPll3Config);
-    }
     CLOCK_SetRootDivider(kCLOCK_RootM7, 1U, 1U);              /* Set M7 root clock freq to 600M / 1 = 600M */
     CLOCK_SetRootMux(kCLOCK_RootM7, kCLOCK_M7RootmuxSysPll3); /* switch cortex-m7 to SYSTEM PLL3 */
 
@@ -150,7 +145,7 @@ static void SOC_ClockInit(void)
     CLOCK_EnableClock(kCLOCK_Sec_Debug);
 
     /* Update core clock */
-    SystemCoreClockUpdate();
+    //SystemCoreClockUpdate();
 }
 
 static void SOC_UartInit(void)
