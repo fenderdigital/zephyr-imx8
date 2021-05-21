@@ -131,7 +131,7 @@ static void SOC_ClockInit(void)
 
     CLOCK_EnableClock(kCLOCK_Rdc);   /* Enable RDC clock */
     CLOCK_EnableClock(kCLOCK_Ocram); /* Enable Ocram clock */
-	CLOCK_EnableClock(kCLOCK_Mu); /* Enable Messaging Unit clock gate*/
+    CLOCK_EnableClock(kCLOCK_Mu); /* Enable Messaging Unit clock gate*/
 
     /* The purpose to enable the following modules clock is to make sure the M7 core could work normally when A53 core
      * enters the low power status.*/
