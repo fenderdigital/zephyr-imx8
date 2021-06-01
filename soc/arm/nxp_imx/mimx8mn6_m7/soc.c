@@ -93,9 +93,9 @@ const ccm_analog_integer_pll_config_t g_sysPll2Config = {
 /* SYSTEM PLL3 configuration */
 const ccm_analog_integer_pll_config_t g_sysPll3Config = {
     .refSel  = kANALOG_PllRefOsc24M, /*!< PLL reference OSC24M */
-    .mainDiv = 300,
+    .mainDiv = 375,
     .preDiv  = 3U,
-    .postDiv = 2U, /*!< SYSTEM PLL3 frequency  = 600MHZ */
+    .postDiv = 2U, /*!< SYSTEM PLL3 frequency  = 750 */
 };
 
 static void SOC_ClockInit(void)
@@ -116,6 +116,9 @@ static void SOC_ClockInit(void)
     /* Init Audio PLL1/Audio PLL2 */
     CLOCK_InitAudioPll1(&g_audioPll1Config); /* init AUDIO PLL1 run at 393215996HZ */
     CLOCK_InitAudioPll2(&g_audioPll2Config); /* init AUDIO PLL2 run at 361267197HZ */
+
+    /* Init PLL3 */
+    CLOCK_InitSysPll3(&g_sysPll3Config);     /* init PLL3 to 750MHz */
 
     CLOCK_SetRootDivider(kCLOCK_RootM7, 1U, 1U);              /* Set M7 root clock freq to 600M / 1 = 600M */
     CLOCK_SetRootMux(kCLOCK_RootM7, kCLOCK_M7RootmuxSysPll3); /* switch cortex-m7 to SYSTEM PLL3 */
@@ -274,8 +277,6 @@ static int nxp_mimx8mn6_init(const struct device *arg)
 
 	/* Take over UART */
 	SOC_UartInit();
-
-	*(int*)0x308600B8 = 0;
 
 	return 0;
 }
