@@ -301,9 +301,9 @@ static inline char z_log_minimal_level_to_char(int level)
 
 #define Z_LOG_INSTANCE(_level, _inst, ...)		 \
 	__LOG(_level,					 \
-	      IS_ENABLED(CONFIG_LOG_RUNTIME_FILTERING) ? \
+	      (uint16_t)(IS_ENABLED(CONFIG_LOG_RUNTIME_FILTERING) ? \
 	      LOG_DYNAMIC_ID_GET(_inst) :		 \
-	      LOG_CONST_ID_GET(_inst),			 \
+	      LOG_CONST_ID_GET(_inst)),			 \
 	      _inst,					 \
 	      __VA_ARGS__)
 
