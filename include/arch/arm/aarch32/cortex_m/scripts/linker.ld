@@ -135,6 +135,9 @@ MEMORY
 #if DT_NODE_HAS_STATUS(DT_NODELABEL(audio_buffers), okay)
 	DDR_AUDIO   		  (rw) : ORIGIN = DT_REG_ADDR(DT_NODELABEL(audio_buffers)), LENGTH = DT_REG_SIZE(DT_NODELABEL(audio_buffers))
 #endif
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(ocram), okay)
+	OCRAM   		  	  (rw) : ORIGIN = DT_REG_ADDR(DT_NODELABEL(ocram)), LENGTH = DT_REG_SIZE(DT_NODELABEL(ocram))
+#endif
     /* Used by and documented in include/linker/intlist.ld */
     IDT_LIST  (wx)      : ORIGIN = (RAM_ADDR + RAM_SIZE), LENGTH = 2K
     }

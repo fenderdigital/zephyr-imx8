@@ -248,6 +248,10 @@ static void SOC_MemoryInit(void)
     MPU->RBAR = ARM_MPU_RBAR(5, 0x80000000U);
     MPU->RASR = ARM_MPU_RASR(0, ARM_MPU_AP_FULL, 1, 1, 0, 0, 0, ARM_MPU_REGION_SIZE_1GB);
 
+    /* Region 6 OCRAM[0x0090_0000 - 0x0098_0000]: Memory with Normal type, shareable, non-cacheable */
+    MPU->RBAR = ARM_MPU_RBAR(6, 0x00900000U);
+    MPU->RASR = ARM_MPU_RASR(0, ARM_MPU_AP_FULL, 1, 1, 0, 0, 0, ARM_MPU_REGION_SIZE_512KB);
+
     /*
      * Enable MPU and HFNMIENA feature
      * HFNMIENA ensures that M7 core uses MPU configuration when in hard fault, NMI, and FAULTMASK handlers,
