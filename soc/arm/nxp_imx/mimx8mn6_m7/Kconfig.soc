@@ -13,6 +13,7 @@ config SOC_MIMX8MN6
 	select HAS_MCUX
 	select HAS_MCUX_CCM
 	select HAS_MCUX_RDC
+	select HAS_MCUX_SDMA
 
 endchoice
 
