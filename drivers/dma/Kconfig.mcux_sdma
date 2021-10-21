@@ -1,0 +1,15 @@
+# DMA configuration options
+
+# Copyright (c) 2020, NXP
+# SPDX-License-Identifier: Apache-2.0
+
+config DMA_MCUX_SDMA
+	bool "Enable MCUX SDMA driver"
+	depends on HAS_MCUX_SDMA
+	imply NOCACHE_MEMORY if HAS_MCUX_CACHE
+	help
+	  DMA driver for MCUX series SoCs.
+
+if DMA_MCUX_SDMA
+
+endif # DMA_MCUX_EDMA
