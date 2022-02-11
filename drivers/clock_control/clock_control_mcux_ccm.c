@@ -23,6 +23,14 @@ static const clock_name_t lpspi_clocks[] = {
 	kCLOCK_SysPllPfd2Clk,
 };
 #endif
+#ifdef CONFIG_UART_MCUX_IUART
+static const clock_root_control_t uart_clk_root[] = {
+	kCLOCK_RootUart1,
+	kCLOCK_RootUart2,
+	kCLOCK_RootUart3,
+	kCLOCK_RootUart4,
+};
+#endif
 
 static int mcux_ccm_on(const struct device *dev,
 			      clock_control_subsys_t sub_system)
@@ -109,12 +117,25 @@ static int mcux_ccm_get_subsys_rate(const struct device *dev,
 #endif
 
 #ifdef CONFIG_UART_MCUX_IUART
-	case IMX_CCM_UART_CLK:
-		*rate = CLOCK_GetPllFreq(kCLOCK_SystemPll1Ctrl) /
-				(CLOCK_GetRootPreDivider(kCLOCK_RootUart4)) /
-				(CLOCK_GetRootPostDivider(kCLOCK_RootUart4)) /
+	case IMX_CCM_UART1_CLK:
+	case IMX_CCM_UART2_CLK:
+	case IMX_CCM_UART3_CLK:
+	case IMX_CCM_UART4_CLK:
+	{
+		uint32_t instance = clock_name & IMX_CCM_INSTANCE_MASK;
+		clock_root_control_t clk_root = uart_clk_root[instance];
+		uint32_t uart_mux = CLOCK_GetRootMux(clk_root);
+
+		if (uart_mux == 0) {
+			*rate = OSC24M_CLK_FREQ;
+		} else if (uart_mux == 1) {
+			*rate = CLOCK_GetPllFreq(kCLOCK_SystemPll1Ctrl) /
+				(CLOCK_GetRootPreDivider(clk_root)) /
+				(CLOCK_GetRootPostDivider(clk_root)) /
 				10;
-		break;
+		}
+
+	} break;
 #endif
 
 #ifdef CONFIG_CAN_MCUX_FLEXCAN
