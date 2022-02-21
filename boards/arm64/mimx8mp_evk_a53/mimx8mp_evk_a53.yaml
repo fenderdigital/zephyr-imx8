@@ -1,0 +1,7 @@
+identifier: mimx8mp_evk_a53
+name: NXP i.MX8M Plus EVK with Zephyr on A53 core3.
+type: mcu
+arch: arm64
+toolchain:
+  - zephyr
+  - cross-compile

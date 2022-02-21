@@ -1,0 +1,9 @@
+#
+# Copyright 2022 NXP
+#
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_MIMX8MP_EVK_A53
+	bool "NXP i.MX8M Plus A53 core EVK board"
+	depends on SOC_MIMX8MP_A53
+	select SOC_PART_NUMBER_MIMX8ML8DVNLZ
