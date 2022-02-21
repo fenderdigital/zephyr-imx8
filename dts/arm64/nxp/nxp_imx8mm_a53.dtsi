@@ -1,0 +1,125 @@
+/*
+ * Copyright 2022 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <arm64/armv8-a.dtsi>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/clock/imx_ccm.h>
+#include <mem.h>
+
+/ {
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0>;
+		};
+
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <1>;
+		};
+
+		cpu@2 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <2>;
+		};
+
+		cpu@3 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <3>;
+		};
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupt-parent = <&gic>;
+		interrupts = <GIC_PPI 13 IRQ_TYPE_LEVEL
+			      IRQ_DEFAULT_PRIORITY>,
+			     <GIC_PPI 14 IRQ_TYPE_LEVEL
+			      IRQ_DEFAULT_PRIORITY>,
+			     <GIC_PPI 11 IRQ_TYPE_LEVEL
+			      IRQ_DEFAULT_PRIORITY>,
+			     <GIC_PPI 10 IRQ_TYPE_LEVEL
+			      IRQ_DEFAULT_PRIORITY>;
+		label = "arch_timer";
+	};
+
+	psci {
+		compatible = "arm,psci-0.2";
+		method = "smc";
+		label = "PSCI";
+	};
+
+	soc {
+		sram0: memory@93c00000 {
+			reg = <0x93c00000 DT_SIZE_M(1)>;
+		};
+
+		gpt1: gpt@302d0000 {
+			compatible = "nxp,imx-gpt";
+			reg = <0x302d0000 0x10000>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL
+				IRQ_DEFAULT_PRIORITY>;
+			gptfreq = <24000000>;
+			clocks = <&ccm IMX_CCM_GPT_IPG_CLK 0x6C 20>;
+			label = "GPT1";
+			status = "disabled";
+		};
+
+		gpt2: gpt@302e0000 {
+			compatible = "nxp,imx-gpt";
+			reg = <0x302e0000 0x10000>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 54 IRQ_TYPE_LEVEL
+				IRQ_DEFAULT_PRIORITY>;
+			gptfreq = <24000000>;
+			clocks = <&ccm IMX_CCM_GPT_IPG_CLK 0x68 24>;
+			label = "GPT2";
+			status = "disabled";
+		};
+
+		ana_pll: ana_pll@30360000 {
+			compatible = "nxp,imx-ana";
+			reg = <0x30360000 DT_SIZE_K(64)>;
+			label = "ANA_PLL";
+		};
+
+		gic: interrupt-controller@38800000 {
+			compatible = "arm,gic";
+			reg = <0x38800000 0x10000>, /* GICD */
+			      <0x38880000 0xc0000>; /* GICR */
+			interrupt-controller;
+			#interrupt-cells = <4>;
+			label = "GIC";
+			status = "okay";
+		};
+
+		ccm: ccm@30380000 {
+			compatible = "nxp,imx-ccm";
+			reg = <0x30380000 DT_SIZE_K(64)>;
+			label = "CCM";
+			#clock-cells = <3>;
+		};
+
+		uart4: uart@30a60000 {
+			compatible = "nxp,imx-iuart";
+			reg = <0x30a60000 0x10000>;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 29 IRQ_TYPE_LEVEL
+				      IRQ_DEFAULT_PRIORITY>;
+			clocks = <&ccm IMX_CCM_UART4_CLK 0x6c 24>;
+			label = "UART_4";
+			status = "disabled";
+		};
+	};
+};
