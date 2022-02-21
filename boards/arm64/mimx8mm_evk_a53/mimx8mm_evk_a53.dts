@@ -1,0 +1,39 @@
+/*
+ * Copyright 2022 NXP
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+#include <nxp/nxp_imx8mm_a53.dtsi>
+
+/ {
+	model = "NXP i.MX8M Mini EVK board";
+	compatible = "nxp,mimx8mm_evk";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	chosen {
+		zephyr,console = &uart4;
+		zephyr,shell-uart = &uart4;
+		zephyr,sram = &sram0;
+	};
+
+	cpus {
+		cpu@0 {
+			status = "disabled";
+		};
+		cpu@1 {
+			status = "disabled";
+		};
+		cpu@2 {
+			status = "disabled";
+		};
+	};
+};
+
+&uart4 {
+	status = "okay";
+	current-speed = <115200>;
+};
