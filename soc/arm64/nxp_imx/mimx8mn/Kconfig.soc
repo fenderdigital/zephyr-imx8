@@ -16,6 +16,7 @@ config SOC_MIMX8MN_A53
 	select GIC_V3
 	select HAS_MCUX
 	select HAS_MCUX_CCM
+	select HAS_MCUX_I2S
 endchoice
 
 if SOC_SERIES_IMX8MN_A53
