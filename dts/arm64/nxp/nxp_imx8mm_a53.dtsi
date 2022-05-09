@@ -66,7 +66,7 @@
 
 		gpt1: gpt@302d0000 {
 			compatible = "nxp,imx-gpt";
-			reg = <0x302d0000 0x10000>;
+			reg = <0x302d0000 DT_SIZE_K(64)>;
 			interrupt-parent = <&gic>;
 			interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL
 				IRQ_DEFAULT_PRIORITY>;
@@ -78,7 +78,7 @@
 
 		gpt2: gpt@302e0000 {
 			compatible = "nxp,imx-gpt";
-			reg = <0x302e0000 0x10000>;
+			reg = <0x302e0000 DT_SIZE_K(64)>;
 			interrupt-parent = <&gic>;
 			interrupts = <GIC_SPI 54 IRQ_TYPE_LEVEL
 				IRQ_DEFAULT_PRIORITY>;
@@ -96,8 +96,8 @@
 
 		gic: interrupt-controller@38800000 {
 			compatible = "arm,gic";
-			reg = <0x38800000 0x10000>, /* GICD */
-			      <0x38880000 0xc0000>; /* GICR */
+			reg = <0x38800000 DT_SIZE_K(64)>, /* GICD */
+			      <0x38880000 DT_SIZE_K(768)>; /* GICR */
 			interrupt-controller;
 			#interrupt-cells = <4>;
 			label = "GIC";
@@ -113,12 +113,53 @@
 
 		uart4: uart@30a60000 {
 			compatible = "nxp,imx-iuart";
-			reg = <0x30a60000 0x10000>;
+			reg = <0x30a60000 DT_SIZE_K(64)>;
 			interrupt-parent = <&gic>;
 			interrupts = <GIC_SPI 29 IRQ_TYPE_LEVEL
 				      IRQ_DEFAULT_PRIORITY>;
 			clocks = <&ccm IMX_CCM_UART4_CLK 0x6c 24>;
 			label = "UART_4";
+			status = "disabled";
+		};
+
+		iomuxc: pinctrl@30330000 {
+			compatible = "nxp,imx-iomuxc";
+			reg = <0x30330000 DT_SIZE_K(64)>;
+		};
+
+		i2c3: i2c@30a40000 {
+			compatible = "nxp,imx-i2c";
+			reg = <0x30a40000 DT_SIZE_K(64)>;
+			status = "disabled";
+		};
+
+		sai1: sai@30010000 {
+			compatible = "nxp,imx-sai";
+			reg = <0x30010000 DT_SIZE_K(64)>;
+			status = "disabled";
+		};
+
+		sai2: sai@30020000 {
+			compatible = "nxp,imx-sai";
+			reg = <0x30020000 DT_SIZE_K(64)>;
+			status = "disabled";
+		};
+
+		sai3: sai@30030000 {
+			compatible = "nxp,imx-sai";
+			reg = <0x30030000 DT_SIZE_K(64)>;
+			status = "disabled";
+		};
+
+		sai5: sai@30050000 {
+			compatible = "nxp,imx-sai";
+			reg = <0x30050000 DT_SIZE_K(64)>;
+			status = "disabled";
+		};
+
+		sai6: sai@30060000 {
+			compatible = "nxp,imx-sai";
+			reg = <0x30060000 DT_SIZE_K(64)>;
 			status = "disabled";
 		};
 	};
