@@ -64,6 +64,16 @@
 			reg = <0xc0000000 DT_SIZE_M(1)>;
 		};
 
+		gpio4: gpio@30230000 {
+			compatible = "nxp,imx-igpio";
+			reg = <0x30230000 DT_SIZE_K(64)>;
+		};
+
+		gpio5: gpio@30240000 {
+			compatible = "nxp,imx-igpio";
+			reg = <0x30240000 DT_SIZE_K(64)>;
+		};
+
 		gpt1: gpt@302d0000 {
 			compatible = "nxp,imx-gpt";
 			reg = <0x302d0000 DT_SIZE_K(64)>;
@@ -88,20 +98,15 @@
 			status = "disabled";
 		};
 
+		iomuxc: pinctrl@30330000 {
+			compatible = "nxp,imx-iomuxc";
+			reg = <0x30330000 DT_SIZE_K(64)>;
+		};
+
 		ana_pll: ana_pll@30360000 {
 			compatible = "nxp,imx-ana";
 			reg = <0x30360000 DT_SIZE_K(64)>;
 			label = "ANA_PLL";
-		};
-
-		gic: interrupt-controller@38800000 {
-			compatible = "arm,gic";
-			reg = <0x38800000 DT_SIZE_K(64)>, /* GICD */
-			      <0x38880000 DT_SIZE_K(768)>; /* GICR */
-			interrupt-controller;
-			#interrupt-cells = <4>;
-			label = "GIC";
-			status = "okay";
 		};
 
 		ccm: ccm@30380000 {
@@ -109,6 +114,22 @@
 			reg = <0x30380000 DT_SIZE_K(64)>;
 			label = "CCM";
 			#clock-cells = <3>;
+		};
+
+		gpc: gpc@303a0000 {
+			compatible = "nxp,imx-gpc";
+			reg = <0x303a0000 DT_SIZE_K(64)>;
+		};
+
+		flexcan: flexcan@308c0000 {
+			compatible = "nxp,imx-flexcan";
+			reg = <0x308c0000 DT_SIZE_K(64)>;
+		};
+
+		i2c3: i2c@30a40000 {
+			compatible = "nxp,imx-i2c";
+			reg = <0x30a40000 DT_SIZE_K(64)>;
+			status = "disabled";
 		};
 
 		uart4: uart@30a60000 {
@@ -119,22 +140,6 @@
 				      IRQ_DEFAULT_PRIORITY>;
 			clocks = <&ccm IMX_CCM_UART4_CLK 0x6c 24>;
 			label = "UART_4";
-			status = "disabled";
-		};
-
-		iomuxc: pinctrl@30330000 {
-			compatible = "nxp,imx-iomuxc";
-			reg = <0x30330000 DT_SIZE_K(64)>;
-		};
-
-		gpc: gpc@303a0000 {
-			compatible = "nxp,imx-gpc";
-			reg = <0x303a0000 DT_SIZE_K(64)>;
-		};
-
-		i2c3: i2c@30a40000 {
-			compatible = "nxp,imx-i2c";
-			reg = <0x30a40000 DT_SIZE_K(64)>;
 			status = "disabled";
 		};
 
@@ -178,6 +183,16 @@
 			compatible = "nxp,imx-audio-blk-ctrl";
 			reg = <0x30e20000 DT_SIZE_K(64)>;
 			status = "disabled";
+		};
+
+		gic: interrupt-controller@38800000 {
+			compatible = "arm,gic";
+			reg = <0x38800000 DT_SIZE_K(64)>, /* GICD */
+			      <0x38880000 DT_SIZE_K(768)>; /* GICR */
+			interrupt-controller;
+			#interrupt-cells = <4>;
+			label = "GIC";
+			status = "okay";
 		};
 	};
 };

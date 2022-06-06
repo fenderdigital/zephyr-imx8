@@ -98,6 +98,25 @@ static const struct arm_mmu_region mmu_regions[] = {
 			      DT_REG_ADDR(DT_INST(0, nxp_imx_audio_blk_ctrl)),
 			      DT_REG_SIZE(DT_INST(0, nxp_imx_audio_blk_ctrl)),
 			      MT_DEVICE_nGnRE | MT_P_RW_U_RW | MT_NS),
+
+#ifdef CONFIG_HAS_MCUX_IGPIO
+	MMU_REGION_FLAT_ENTRY("GPIO4",
+			      DT_REG_ADDR(DT_INST(0, nxp_imx_igpio)),
+			      DT_REG_SIZE(DT_INST(0, nxp_imx_igpio)),
+			      MT_DEVICE_nGnRE | MT_P_RW_U_RW | MT_NS),
+
+	MMU_REGION_FLAT_ENTRY("GPIO5",
+			      DT_REG_ADDR(DT_INST(1, nxp_imx_igpio)),
+			      DT_REG_SIZE(DT_INST(1, nxp_imx_igpio)),
+			      MT_DEVICE_nGnRE | MT_P_RW_U_RW | MT_NS),
+#endif
+
+#ifdef CONFIG_HAS_MCUX_FLEXCAN
+	MMU_REGION_FLAT_ENTRY("FLEXCAN",
+			      DT_REG_ADDR(DT_INST(0, nxp_imx_flexcan)),
+			      DT_REG_SIZE(DT_INST(0, nxp_imx_flexcan)),
+			      MT_DEVICE_nGnRE | MT_P_RW_U_RW | MT_NS),
+#endif
 };
 
 const struct arm_mmu_config mmu_config = {
