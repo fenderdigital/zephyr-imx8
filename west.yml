@@ -98,7 +98,8 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: 9629f15fd80169cc9669e3fbb1260467c3aeb175
+      url: https://github.com/NXPmicro/hal_nxp.git
+      revision: 33ad103c6f21c324a7381aaa4c89ffd9450b28ce
       path: modules/hal/nxp
       groups:
         - hal
