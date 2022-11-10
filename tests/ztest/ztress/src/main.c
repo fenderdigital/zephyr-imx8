@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <ztest.h>
-#include <ztress.h>
+#include <zephyr/ztest.h>
+#include <zephyr/ztress.h>
 
 volatile int ztress_dummy;
 
@@ -29,8 +29,9 @@ static void test_timeout(void)
 	uint32_t repeat = 1000000;
 	k_timeout_t t = Z_TIMEOUT_TICKS(20);
 	int err;
+	int timeout = 1000;
 
-	ztress_set_timeout(K_MSEC(1000));
+	ztress_set_timeout(K_MSEC(timeout));
 
 	d = k_uptime_get();
 
@@ -39,7 +40,7 @@ static void test_timeout(void)
 		       ZTRESS_THREAD(ztress_handler_busy, NULL, repeat, 1000, t));
 
 	d = k_uptime_get() - d;
-	zassert_within(d, 1000, 200, NULL);
+	zassert_within(d, 1000, 200);
 
 	/* Set of two threads and timer. Test is setup manually, without helper macro. */
 	struct ztress_context_data timer_data =
@@ -52,7 +53,7 @@ static void test_timeout(void)
 	d = k_uptime_get();
 	err = ztress_execute(&timer_data, thread_data, ARRAY_SIZE(thread_data));
 	d = k_uptime_get() - d;
-	zassert_within(d, 1000, 200, NULL);
+	zassert_within(d, timeout + 500, 500);
 
 	ztress_set_timeout(K_NO_WAIT);
 }
@@ -73,8 +74,8 @@ static void test_abort(void)
 	ZTRESS_EXECUTE(ZTRESS_THREAD(ztress_handler_busy, NULL, repeat, 0, K_MSEC(1)),
 		       ZTRESS_THREAD(ztress_handler_busy, NULL, repeat, 0, K_MSEC(1)));
 
-	zassert_true(ztress_exec_count(0) < repeat, NULL);
-	zassert_true(ztress_exec_count(1) < repeat, NULL);
+	zassert_true(ztress_exec_count(0) < repeat);
+	zassert_true(ztress_exec_count(1) < repeat);
 }
 
 static void test_repeat_completion(void)
@@ -88,7 +89,7 @@ static void test_repeat_completion(void)
 	for (int i = 0; i < 2; i++) {
 		uint32_t exec_cnt = ztress_exec_count(i);
 
-		zassert_true(exec_cnt >= repeat && exec_cnt < repeat + 10, NULL);
+		zassert_true(exec_cnt >= repeat && exec_cnt < repeat + 10);
 	}
 
 	/* Set of two threads and timer */
@@ -99,7 +100,7 @@ static void test_repeat_completion(void)
 	for (int i = 0; i < 3; i++) {
 		uint32_t exec_cnt = ztress_exec_count(i);
 
-		zassert_true(exec_cnt >= repeat && exec_cnt < repeat + 10, NULL);
+		zassert_true(exec_cnt >= repeat && exec_cnt < repeat + 10);
 	}
 }
 
@@ -125,7 +126,7 @@ static void test_no_context_requirements(void)
 		       ZTRESS_THREAD(ztress_handler_busy, NULL, 0, 0, Z_TIMEOUT_TICKS(30)));
 
 	exec_cnt = ztress_exec_count(1);
-	zassert_true(exec_cnt >= repeat && exec_cnt < repeat + 10, NULL);
+	zassert_true(exec_cnt >= repeat && exec_cnt < repeat + 10);
 }
 
 void test_main(void)

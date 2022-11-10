@@ -3,13 +3,13 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-#include <drivers/counter.h>
+#include <zephyr/drivers/counter.h>
 #include <hal/nrf_timer.h>
-#include <sys/atomic.h>
+#include <zephyr/sys/atomic.h>
 
 #define LOG_LEVEL CONFIG_COUNTER_LOG_LEVEL
 #define LOG_MODULE_NAME counter_timer
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(LOG_MODULE_NAME, LOG_LEVEL);
 
 #define TIMER_CLOCK 16000000
@@ -154,7 +154,7 @@ static int set_cc(const struct device *dev, uint8_t id, uint32_t val,
 				"Expected that CC interrupt is disabled.");
 
 	/* First take care of a risk of an event coming from CC being set to
-	 * next tick. Reconfigure CC to future (now tick is the furtherest
+	 * next tick. Reconfigure CC to future (now tick is the furthest
 	 * future).
 	 */
 	now = read(dev);
@@ -291,7 +291,7 @@ static int init_timer(const struct device *dev,
 
 	nrf_timer_bit_width_set(reg, config->bit_width);
 	nrf_timer_mode_set(reg, config->mode);
-	nrf_timer_frequency_set(reg, config->freq);
+	nrf_timer_prescaler_set(reg, config->freq);
 
 	nrf_timer_cc_set(reg, TOP_CH, counter_get_max_top_value(dev));
 

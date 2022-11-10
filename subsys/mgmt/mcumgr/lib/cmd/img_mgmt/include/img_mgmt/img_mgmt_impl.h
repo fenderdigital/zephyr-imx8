@@ -22,11 +22,13 @@ extern "C" {
 #endif
 
 /**
- * @brief Ensures the spare slot (slot 1) is fully erased.
+ * @brief Ensures the spare slot is fully erased.
+ *
+ * @param slot		The slot to erase.  In the typical use case, this is 1.
  *
  * @return 0 on success, MGMT_ERR_[...] code on failure.
  */
-int img_mgmt_impl_erase_slot(void);
+int img_mgmt_impl_erase_slot(int slot);
 
 /**
  * @brief Marks the image in the specified slot as pending. On the next reboot,
@@ -55,7 +57,7 @@ int img_mgmt_impl_write_confirmed(void);
  * @param slot		The index of the slot to read from.
  * @param offset	The offset within the slot to read from.
  * @param dst		On success, the read data gets written here.
- * @param num_bytes	The number of byets to read.
+ * @param num_bytes	The number of bytes to read.
  *
  * @return 0 on success, MGMT_ERR_[...] code on failure.
  */
@@ -131,7 +133,7 @@ int img_mgmt_impl_erase_if_needed(uint32_t off, uint32_t len);
  * @return 0 if processing should occur;A MGMT_ERR code if an error response should be sent instead.
  */
 int img_mgmt_impl_upload_inspect(const struct img_mgmt_upload_req *req,
-				 struct img_mgmt_upload_action *action, const char **errstr);
+				 struct img_mgmt_upload_action *action);
 
 #define ERASED_VAL_32(x) (((x) << 24) | ((x) << 16) | ((x) << 8) | (x))
 int img_mgmt_impl_erased_val(int slot, uint8_t *erased_val);

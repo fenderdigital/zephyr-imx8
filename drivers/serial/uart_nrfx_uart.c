@@ -8,12 +8,13 @@
  * @brief Driver for Nordic Semiconductor nRF5X UART
  */
 
-#include <drivers/uart.h>
-#include <pm/device.h>
+#include <zephyr/drivers/uart.h>
+#include <zephyr/pm/device.h>
+#include <soc.h>
 #include <hal/nrf_uart.h>
 
 #ifdef CONFIG_PINCTRL
-#include <drivers/pinctrl.h>
+#include <zephyr/drivers/pinctrl.h>
 #else
 #include <hal/nrf_gpio.h>
 #endif /* CONFIG_PINCTRL */
@@ -32,11 +33,11 @@
 #define BAUDRATE	PROP(current_speed)
 
 #ifdef CONFIG_PINCTRL
-#define DISABLE_RX	HAS_PROP(disable_rx)
+#define DISABLE_RX	PROP(disable_rx)
 #else
 #define DISABLE_RX	!HAS_PROP(rx_pin)
 #endif /* CONFIG_PINCTRL */
-#define HW_FLOW_CONTROL_AVAILABLE	HAS_PROP(hw_flow_control)
+#define HW_FLOW_CONTROL_AVAILABLE	PROP(hw_flow_control)
 
 #define IRQN		DT_INST_IRQN(0)
 #define IRQ_PRIO	DT_INST_IRQ(0, priority)
@@ -558,7 +559,7 @@ static int uart_nrfx_rx_buf_rsp(const struct device *dev, uint8_t *buf,
 				size_t len)
 {
 	int err;
-	int key = irq_lock();
+	unsigned int key = irq_lock();
 
 	if (!uart0_cb.rx_enabled) {
 		err = -EACCES;
@@ -667,7 +668,7 @@ static void rx_isr(const struct device *dev)
 		}
 		rx_rdy_evt(dev);
 
-		int key = irq_lock();
+		unsigned int key = irq_lock();
 
 		if (uart0_cb.rx_secondary_buffer_length == 0) {
 			uart0_cb.rx_enabled = 0;
@@ -1191,6 +1192,9 @@ static int uart_nrfx_pm_action(const struct device *dev,
 #ifdef CONFIG_PINCTRL
 PINCTRL_DT_INST_DEFINE(0);
 #endif /* CONFIG_PINCTRL */
+
+NRF_DT_CHECK_PIN_ASSIGNMENTS(DT_DRV_INST(0), 1,
+			     tx_pin, rx_pin, rts_pin, cts_pin);
 
 static const struct uart_nrfx_config uart_nrfx_uart0_config = {
 #ifdef CONFIG_PINCTRL

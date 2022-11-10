@@ -5,19 +5,21 @@
  *
  */
 #include <errno.h>
-#include <device.h>
-#include <drivers/gpio.h>
-#include <dt-bindings/interrupt-controller/ite-intc.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/dt-bindings/gpio/ite-it8xxx2-gpio.h>
+#include <zephyr/dt-bindings/interrupt-controller/ite-intc.h>
 #include <zephyr/types.h>
-#include <sys/util.h>
+#include <zephyr/sys/util.h>
 #include <string.h>
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 #include "gpio_utils.h"
+LOG_MODULE_REGISTER(gpio_it8xxx2, LOG_LEVEL_ERR);
 
 #define DT_DRV_COMPAT ite_it8xxx2_gpio
 
 /*
- * Strcture gpio_ite_cfg is about the setting of gpio
+ * Structure gpio_ite_cfg is about the setting of gpio
  * this config will be used at initial time
  */
 struct gpio_ite_cfg {
@@ -37,7 +39,7 @@ struct gpio_ite_cfg {
 	uint8_t gpio_irq[8];
 };
 
-/* Strcture gpio_ite_data is about callback function */
+/* Structure gpio_ite_data is about callback function */
 struct gpio_ite_data {
 	struct gpio_driver_data common;
 	sys_slist_t callbacks;
@@ -365,28 +367,49 @@ static int gpio_ite_configure(const struct device *dev,
 		return -ENOTSUP;
 	}
 
+	if (flags == GPIO_DISCONNECTED) {
+		*reg_gpcr = GPCR_PORT_PIN_MODE_TRISTATE;
+		/*
+		 * Since not all GPIOs can be to configured as tri-state,
+		 * prompt error if pin doesn't support the flag.
+		 */
+		if (*reg_gpcr != GPCR_PORT_PIN_MODE_TRISTATE) {
+			/* Go back to default setting (input) */
+			*reg_gpcr = GPCR_PORT_PIN_MODE_INPUT;
+			LOG_ERR("Cannot config GPIO-%c%d as tri-state",
+				(gpio_config->index + 'A'), pin);
+			return -ENOTSUP;
+		}
+		/*
+		 * The following configuration isn't necessary because the pin
+		 * was configured as disconnected.
+		 */
+		return 0;
+	}
+
 	/*
 	 * Select open drain first, so that we don't glitch the signal
 	 * when changing the line to an output.
 	 */
-	if (flags & GPIO_OPEN_DRAIN)
+	if (flags & GPIO_OPEN_DRAIN) {
 		*reg_gpotr |= mask;
-	else
+	} else {
 		*reg_gpotr &= ~mask;
+	}
 
 	/* 1.8V or 3.3V */
 	reg_1p8v = &IT8XXX2_GPIO_GCRX(
 			gpio_1p8v[gpio_config->index][pin].offset);
 	mask_1p8v = gpio_1p8v[gpio_config->index][pin].mask_1p8v;
 	if (reg_1p8v != &IT8XXX2_GPIO_GCRX(0)) {
-		gpio_flags_t volt = flags & GPIO_VOLTAGE_MASK;
+		gpio_flags_t volt = flags & IT8XXX2_GPIO_VOLTAGE_MASK;
 
-		if (volt == GPIO_VOLTAGE_1P8) {
+		if (volt == IT8XXX2_GPIO_VOLTAGE_1P8) {
 			__ASSERT(!(flags & GPIO_PULL_UP),
 			"Don't enable internal pullup if 1.8V voltage is used");
 			*reg_1p8v |= mask_1p8v;
-		} else if (volt == GPIO_VOLTAGE_3P3 ||
-			   volt == GPIO_VOLTAGE_DEFAULT) {
+		} else if (volt == IT8XXX2_GPIO_VOLTAGE_3P3 ||
+			   volt == IT8XXX2_GPIO_VOLTAGE_DEFAULT) {
 			*reg_1p8v &= ~mask_1p8v;
 		} else {
 			return -EINVAL;
@@ -395,10 +418,11 @@ static int gpio_ite_configure(const struct device *dev,
 
 	/* If output, set level before changing type to an output. */
 	if (flags & GPIO_OUTPUT) {
-		if (flags & GPIO_OUTPUT_INIT_HIGH)
+		if (flags & GPIO_OUTPUT_INIT_HIGH) {
 			*reg_gpdr |= mask;
-		else if (flags & GPIO_OUTPUT_INIT_LOW)
+		} else if (flags & GPIO_OUTPUT_INIT_LOW) {
 			*reg_gpdr &= ~mask;
+		}
 	}
 
 	/* Set input or output. */
@@ -424,6 +448,69 @@ static int gpio_ite_configure(const struct device *dev,
 
 	return 0;
 }
+
+#ifdef CONFIG_GPIO_GET_CONFIG
+static int gpio_ite_get_config(const struct device *dev,
+			       gpio_pin_t pin,
+			       gpio_flags_t *out_flags)
+{
+	const struct gpio_ite_cfg *gpio_config = DEV_GPIO_CFG(dev);
+
+	volatile uint8_t *reg_gpdr = (uint8_t *)gpio_config->reg_gpdr;
+	volatile uint8_t *reg_gpcr = (uint8_t *)(gpio_config->reg_gpcr + pin);
+	volatile uint8_t *reg_gpotr = (uint8_t *)gpio_config->reg_gpotr;
+	volatile uint8_t *reg_1p8v;
+	volatile uint8_t mask_1p8v;
+	uint8_t mask = BIT(pin);
+	gpio_flags_t flags = 0;
+
+	__ASSERT(gpio_config->index < GPIO_GROUP_COUNT,
+		"Invalid GPIO group index");
+
+	/* push-pull or open-drain */
+	if (*reg_gpotr & mask)
+		flags |= GPIO_OPEN_DRAIN;
+
+	/* 1.8V or 3.3V */
+	reg_1p8v = &IT8XXX2_GPIO_GCRX(
+			gpio_1p8v[gpio_config->index][pin].offset);
+	mask_1p8v = gpio_1p8v[gpio_config->index][pin].mask_1p8v;
+	if (*reg_1p8v & mask_1p8v) {
+		flags |= GPIO_VOLTAGE_1P8;
+	} else {
+		flags |= GPIO_VOLTAGE_3P3;
+	}
+
+	/* set input or output. */
+	if (*reg_gpcr & GPCR_PORT_PIN_MODE_OUTPUT) {
+		flags |= GPIO_OUTPUT;
+
+		/* set level */
+		if (*reg_gpdr & mask) {
+			flags |= GPIO_OUTPUT_HIGH;
+		} else {
+			flags |= GPIO_OUTPUT_LOW;
+		}
+	}
+
+	if (*reg_gpcr & GPCR_PORT_PIN_MODE_INPUT) {
+		flags |= GPIO_INPUT;
+
+		/* pullup / pulldown */
+		if (*reg_gpcr & GPCR_PORT_PIN_MODE_PULLUP) {
+			flags |= GPIO_PULL_UP;
+		}
+
+		if (*reg_gpcr & GPCR_PORT_PIN_MODE_PULLDOWN) {
+			flags |= GPIO_PULL_DOWN;
+		}
+	}
+
+	*out_flags = flags;
+
+	return 0;
+}
+#endif
 
 static int gpio_ite_port_get_raw(const struct device *dev,
 					gpio_port_value_t *value)
@@ -536,15 +623,17 @@ static int gpio_ite_pin_interrupt_configure(const struct device *dev,
 		uint8_t wuc_mask = gpio_irqs[gpio_irq].wuc_mask;
 
 		/* Set both edges interrupt. */
-		if ((trig & GPIO_INT_TRIG_BOTH) == GPIO_INT_TRIG_BOTH)
+		if ((trig & GPIO_INT_TRIG_BOTH) == GPIO_INT_TRIG_BOTH) {
 			*(wubemr(wuc_group)) |= wuc_mask;
-		else
+		} else {
 			*(wubemr(wuc_group)) &= ~wuc_mask;
+		}
 
-		if (trig & GPIO_INT_TRIG_LOW)
+		if (trig & GPIO_INT_TRIG_LOW) {
 			*(wuemr(wuc_group)) |= wuc_mask;
-		else
+		} else {
 			*(wuemr(wuc_group)) &= ~wuc_mask;
+		}
 		/*
 		 * Always write 1 to clear the WUC status register after
 		 * modifying edge mode selection register (WUBEMR and WUEMR).
@@ -561,6 +650,9 @@ static int gpio_ite_pin_interrupt_configure(const struct device *dev,
 
 static const struct gpio_driver_api gpio_ite_driver_api = {
 	.pin_configure = gpio_ite_configure,
+#ifdef CONFIG_GPIO_GET_CONFIG
+	.pin_get_config = gpio_ite_get_config,
+#endif
 	.port_get_raw = gpio_ite_port_get_raw,
 	.port_set_masked_raw = gpio_ite_port_set_masked_raw,
 	.port_set_bits_raw = gpio_ite_port_set_bits_raw,
@@ -613,8 +705,8 @@ static int gpio_it8xxx2_init_set(const struct device *arg)
 	ARG_UNUSED(arg);
 
 	if (IS_ENABLED(CONFIG_SOC_IT8XXX2_GPIO_GROUP_K_L_DEFAULT_PULL_DOWN)) {
-		const struct device *gpiok = DEVICE_DT_GET(DT_NODELABEL(gpiok));
-		const struct device *gpiol = DEVICE_DT_GET(DT_NODELABEL(gpiol));
+		const struct device *const gpiok = DEVICE_DT_GET(DT_NODELABEL(gpiok));
+		const struct device *const gpiol = DEVICE_DT_GET(DT_NODELABEL(gpiol));
 
 		for (int i = 0; i < 8; i++) {
 			gpio_pin_configure(gpiok, i, GPIO_INPUT | GPIO_PULL_DOWN);
@@ -623,7 +715,7 @@ static int gpio_it8xxx2_init_set(const struct device *arg)
 	}
 
 	if (IS_ENABLED(CONFIG_SOC_IT8XXX2_GPIO_H7_DEFAULT_OUTPUT_LOW)) {
-		const struct device *gpioh = DEVICE_DT_GET(DT_NODELABEL(gpioh));
+		const struct device *const gpioh = DEVICE_DT_GET(DT_NODELABEL(gpioh));
 
 		gpio_pin_configure(gpioh, 7, GPIO_OUTPUT_LOW);
 	}

@@ -6,10 +6,10 @@
 
 #include <stdint.h>
 
-#include <sys/byteorder.h>
-#include <sys/util.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/util.h>
 
-#include <bluetooth/hci.h>
+#include <zephyr/bluetooth/hci.h>
 
 #include "hal/ccm.h"
 #include "hal/radio.h"
@@ -169,8 +169,8 @@ uint8_t lll_scan_aux_setup(struct pdu_adv *pdu, uint8_t pdu_phy,
 
 	/* No need to scan further if no aux_ptr filled */
 	aux_ptr = (void *)pri_dptr;
-	if (unlikely(!pri_hdr->aux_ptr || !aux_ptr->offs ||
-		     (aux_ptr->phy > EXT_ADV_AUX_PHY_LE_CODED))) {
+	if (unlikely(!pri_hdr->aux_ptr || !PDU_ADV_AUX_PTR_OFFSET_GET(aux_ptr) ||
+		     (PDU_ADV_AUX_PTR_PHY_GET(aux_ptr) > EXT_ADV_AUX_PHY_LE_CODED))) {
 		return 0;
 	}
 
@@ -182,7 +182,7 @@ uint8_t lll_scan_aux_setup(struct pdu_adv *pdu, uint8_t pdu_phy,
 	}
 
 	/* Calculate the aux offset from start of the scan window */
-	aux_offset_us = (uint32_t)aux_ptr->offs * window_size_us;
+	aux_offset_us = (uint32_t)PDU_ADV_AUX_PTR_OFFSET_GET(aux_ptr) * window_size_us;
 
 	/* Calculate the window widening that needs to be deducted */
 	if (aux_ptr->ca) {
@@ -191,7 +191,7 @@ uint8_t lll_scan_aux_setup(struct pdu_adv *pdu, uint8_t pdu_phy,
 		window_widening_us = SCA_DRIFT_500_PPM_US(aux_offset_us);
 	}
 
-	phy = BIT(aux_ptr->phy);
+	phy = BIT(PDU_ADV_AUX_PTR_PHY_GET(aux_ptr));
 
 	/* Calculate the minimum overhead to decide if LLL or ULL scheduling
 	 * to be used for auxiliary PDU reception.
@@ -204,8 +204,10 @@ uint8_t lll_scan_aux_setup(struct pdu_adv *pdu, uint8_t pdu_phy,
 		overhead_us += cte_info->time << 3;
 	}
 #endif
-	overhead_us += lll_radio_rx_ready_delay_get(phy, 1);
+	overhead_us += radio_rx_chain_delay_get(pdu_phy, pdu_phy_flags_rx);
+	overhead_us += lll_radio_rx_ready_delay_get(phy, PHY_FLAGS_S8);
 	overhead_us += window_widening_us;
+	overhead_us += EVENT_TICKER_RES_MARGIN_US;
 	overhead_us += EVENT_JITTER_US;
 
 	/* Minimum prepare tick offset + minimum preempt tick offset are the
@@ -250,6 +252,7 @@ void lll_scan_aux_isr_aux_setup(void *param)
 	uint32_t aux_offset_us;
 	uint32_t aux_start_us;
 	struct lll_scan *lll;
+	uint32_t start_us;
 	uint8_t phy_aux;
 	uint32_t hcto;
 
@@ -258,7 +261,7 @@ void lll_scan_aux_isr_aux_setup(void *param)
 	node_rx = param;
 	ftr = &node_rx->hdr.rx_ftr;
 	aux_ptr = ftr->aux_ptr;
-	phy_aux = BIT(aux_ptr->phy);
+	phy_aux = BIT(PDU_ADV_AUX_PTR_PHY_GET(aux_ptr));
 	ftr->aux_phy = phy_aux;
 
 	lll = ftr->param;
@@ -271,7 +274,7 @@ void lll_scan_aux_isr_aux_setup(void *param)
 	}
 
 	/* Calculate the aux offset from start of the scan window */
-	aux_offset_us = (uint32_t)aux_ptr->offs * window_size_us;
+	aux_offset_us = (uint32_t)PDU_ADV_AUX_PTR_OFFSET_GET(aux_ptr) * window_size_us;
 
 	/* Calculate the window widening that needs to be deducted */
 	if (aux_ptr->ca) {
@@ -334,14 +337,16 @@ void lll_scan_aux_isr_aux_setup(void *param)
 	aux_start_us -= lll_radio_rx_ready_delay_get(phy_aux, PHY_FLAGS_S8);
 	aux_start_us -= window_widening_us;
 	aux_start_us -= EVENT_JITTER_US;
-	radio_tmr_start_us(0, aux_start_us);
+
+	start_us = radio_tmr_start_us(0, aux_start_us);
 
 	/* Setup header complete timeout */
-	hcto = ftr->radio_end_us + aux_offset_us;
-	hcto += window_size_us;
-	hcto += window_widening_us;
+	hcto = start_us;
 	hcto += EVENT_JITTER_US;
-	hcto += radio_rx_chain_delay_get(phy_aux, 1);
+	hcto += window_widening_us;
+	hcto += lll_radio_rx_ready_delay_get(phy_aux, PHY_FLAGS_S8);
+	hcto += window_size_us;
+	hcto += radio_rx_chain_delay_get(phy_aux, PHY_FLAGS_S8);
 	hcto += addr_us_get(phy_aux);
 	radio_tmr_hcto_configure(hcto);
 
@@ -356,8 +361,9 @@ void lll_scan_aux_isr_aux_setup(void *param)
 #if defined(HAL_RADIO_GPIO_HAVE_LNA_PIN)
 	radio_gpio_lna_setup();
 
-	radio_gpio_pa_lna_enable(aux_start_us +
-				 radio_rx_ready_delay_get(phy_aux, 1) -
+	radio_gpio_pa_lna_enable(start_us +
+				 radio_rx_ready_delay_get(phy_aux,
+							  PHY_FLAGS_S8) -
 				 HAL_RADIO_GPIO_LNA_OFFSET);
 #endif /* HAL_RADIO_GPIO_HAVE_LNA_PIN */
 }
@@ -389,8 +395,7 @@ bool lll_scan_aux_addr_match_get(const struct lll_scan *lll,
 
 			(void)ull_filter_lll_irks_get(&count);
 			if (count) {
-				radio_ar_resolve(adva);
-				*irkmatch_ok = radio_ar_has_match();
+				*irkmatch_ok = radio_ar_resolve(adva);
 				*irkmatch_id = radio_ar_match_get();
 			}
 		}
@@ -531,9 +536,9 @@ sync_aux_prepare_done:
 	remainder_us = radio_tmr_start(0, ticks_at_start, remainder);
 
 	hcto = remainder_us + lll_aux->window_size_us;
-	hcto += radio_rx_ready_delay_get(lll_aux->phy, 1);
+	hcto += radio_rx_ready_delay_get(lll_aux->phy, PHY_FLAGS_S8);
 	hcto += addr_us_get(lll_aux->phy);
-	hcto += radio_rx_chain_delay_get(lll_aux->phy, 1);
+	hcto += radio_rx_chain_delay_get(lll_aux->phy, PHY_FLAGS_S8);
 	radio_tmr_hcto_configure(hcto);
 
 	/* capture end of Rx-ed PDU, extended scan to schedule auxiliary
@@ -548,7 +553,8 @@ sync_aux_prepare_done:
 	radio_gpio_lna_setup();
 
 	radio_gpio_pa_lna_enable(remainder_us +
-				 radio_rx_ready_delay_get(lll_aux->phy, 1) -
+				 radio_rx_ready_delay_get(lll_aux->phy,
+							  PHY_FLAGS_S8) -
 				 HAL_RADIO_GPIO_LNA_OFFSET);
 #endif /* HAL_RADIO_GPIO_HAVE_LNA_PIN */
 
@@ -571,19 +577,19 @@ sync_aux_prepare_done:
 		 */
 		if (lll && lll->conn) {
 			static memq_link_t link;
-			static struct mayfly mfy_after_mstr_offset_get = {
+			static struct mayfly mfy_after_cen_offset_get = {
 				0, 0, &link, NULL,
-				ull_sched_mfy_after_mstr_offset_get};
+				ull_sched_mfy_after_cen_offset_get};
 
 			/* NOTE: LLL scan instance passed, as done when
 			 *       establishing legacy connections.
 			 */
 			p->param = lll;
-			mfy_after_mstr_offset_get.param = p;
+			mfy_after_cen_offset_get.param = p;
 
 			ret = mayfly_enqueue(TICKER_USER_ID_LLL,
 					     TICKER_USER_ID_ULL_LOW, 1,
-					     &mfy_after_mstr_offset_get);
+					     &mfy_after_cen_offset_get);
 			LL_ASSERT(!ret);
 		}
 #endif /* CONFIG_BT_CENTRAL && CONFIG_BT_CTLR_SCHED_ADVANCED */
@@ -749,14 +755,19 @@ static void isr_rx(struct lll_scan *lll, struct lll_scan_aux *lll_aux,
 		crc_ok = radio_crc_is_valid();
 		devmatch_ok = radio_filter_has_match();
 		devmatch_id = radio_filter_match_get();
-		irkmatch_ok = radio_ar_has_match();
-		irkmatch_id = radio_ar_match_get();
+		if (IS_ENABLED(CONFIG_BT_CTLR_PRIVACY)) {
+			irkmatch_ok = radio_ar_has_match();
+			irkmatch_id = radio_ar_match_get();
+		} else {
+			irkmatch_ok = 0U;
+			irkmatch_id = FILTER_IDX_NONE;
+		}
 		rssi_ready = radio_rssi_is_ready();
 		phy_aux_flags_rx = radio_phy_flags_rx_get();
 	} else {
 		crc_ok = devmatch_ok = irkmatch_ok = rssi_ready =
 			phy_aux_flags_rx = 0U;
-		devmatch_id = irkmatch_id = 0xFF;
+		devmatch_id = irkmatch_id = FILTER_IDX_NONE;
 	}
 
 	/* Clear radio rx status and events */
@@ -800,11 +811,22 @@ static void isr_rx(struct lll_scan *lll, struct lll_scan_aux *lll_aux,
 	rl_idx = FILTER_IDX_NONE;
 #endif /* CONFIG_BT_CTLR_PRIVACY */
 
-	if (has_adva &&
-	    !lll_scan_isr_rx_check(lll, irkmatch_ok, devmatch_ok, rl_idx)) {
-		err = -EINVAL;
+	if (has_adva) {
+		bool allow;
 
-		goto isr_rx_do_close;
+		allow = lll_scan_isr_rx_check(lll, irkmatch_ok, devmatch_ok,
+					      rl_idx);
+		if (false) {
+#if defined(CONFIG_BT_CTLR_SYNC_PERIODIC) && \
+	defined(CONFIG_BT_CTLR_FILTER_ACCEPT_LIST)
+		} else if (allow || lll->is_sync) {
+			devmatch_ok = allow ? 1U : 0U;
+#endif /* CONFIG_BT_CTLR_SYNC_PERIODIC && CONFIG_BT_CTLR_FILTER_ACCEPT_LIST */
+		} else if (!allow) {
+			err = -EINVAL;
+
+			goto isr_rx_do_close;
+		}
 	}
 
 	err = isr_rx_pdu(lll, lll_aux, node_rx, pdu, phy_aux, phy_aux_flags_rx,
@@ -1184,6 +1206,11 @@ static int isr_rx_pdu(struct lll_scan *lll, struct lll_scan_aux *lll_aux,
 		ftr->direct = dir_report;
 #endif /* CONFIG_BT_CTLR_EXT_SCAN_FP */
 
+#if defined(CONFIG_BT_CTLR_SYNC_PERIODIC) && \
+	defined(CONFIG_BT_CTLR_FILTER_ACCEPT_LIST)
+		ftr->devmatch = devmatch_ok;
+#endif /* CONFIG_BT_CTLR_SYNC_PERIODIC && CONFIG_BT_CTLR_FILTER_ACCEPT_LIST */
+
 		ftr->aux_lll_sched = 0U;
 
 		ull_rx_put(node_rx->hdr.link, node_rx);
@@ -1252,6 +1279,11 @@ static int isr_rx_pdu(struct lll_scan *lll, struct lll_scan_aux *lll_aux,
 		ftr->direct = dir_report;
 #endif /* CONFIG_BT_CTLR_EXT_SCAN_FP */
 
+#if defined(CONFIG_BT_CTLR_SYNC_PERIODIC) && \
+	defined(CONFIG_BT_CTLR_FILTER_ACCEPT_LIST)
+		ftr->devmatch = devmatch_ok;
+#endif /* CONFIG_BT_CTLR_SYNC_PERIODIC && CONFIG_BT_CTLR_FILTER_ACCEPT_LIST */
+
 		ftr->aux_lll_sched = lll_scan_aux_setup(pdu, phy_aux,
 							phy_aux_flags_rx,
 							lll_scan_aux_isr_aux_setup,
@@ -1310,11 +1342,11 @@ static void isr_tx(struct lll_scan_aux *lll_aux, void *pdu_rx,
 #endif /* CONFIG_BT_CTLR_PRIVACY */
 
 	/* +/- 2us active clock jitter, +1 us hcto compensation */
-	hcto = radio_tmr_tifs_base_get() + EVENT_IFS_US + 4 +
-		RANGE_DELAY_US + 1;
-	hcto += radio_rx_chain_delay_get(lll_aux->phy, 1);
+	hcto = radio_tmr_tifs_base_get() + EVENT_IFS_US +
+	       (EVENT_CLOCK_JITTER_US << 1U) + RANGE_DELAY_US + 1U;
+	hcto += radio_rx_chain_delay_get(lll_aux->phy, PHY_FLAGS_S8);
 	hcto += addr_us_get(lll_aux->phy);
-	hcto -= radio_tx_chain_delay_get(lll_aux->phy, 1);
+	hcto -= radio_tx_chain_delay_get(lll_aux->phy, PHY_FLAGS_S8);
 	radio_tmr_hcto_configure(hcto);
 
 	/* capture end of Rx-ed PDU, extended scan to schedule auxiliary
@@ -1334,8 +1366,10 @@ static void isr_tx(struct lll_scan_aux *lll_aux, void *pdu_rx,
 	}
 
 	radio_gpio_lna_setup();
-	radio_gpio_pa_lna_enable(radio_tmr_tifs_base_get() + EVENT_IFS_US - 4 -
-				 radio_tx_chain_delay_get(lll_aux->phy, 1) -
+	radio_gpio_pa_lna_enable(radio_tmr_tifs_base_get() + EVENT_IFS_US -
+				 (EVENT_CLOCK_JITTER_US << 1U) -
+				 radio_tx_chain_delay_get(lll_aux->phy,
+							  PHY_FLAGS_S8) -
 				 HAL_RADIO_GPIO_LNA_OFFSET);
 #endif /* HAL_RADIO_GPIO_HAVE_LNA_PIN */
 
@@ -1404,11 +1438,16 @@ static void isr_rx_connect_rsp(void *param)
 	trx_done = radio_is_done();
 	if (trx_done) {
 		crc_ok = radio_crc_is_valid();
-		irkmatch_ok = radio_ar_has_match();
-		irkmatch_id = radio_ar_match_get();
+		if (IS_ENABLED(CONFIG_BT_CTLR_PRIVACY)) {
+			irkmatch_ok = radio_ar_has_match();
+			irkmatch_id = radio_ar_match_get();
+		} else {
+			irkmatch_ok = 0U;
+			irkmatch_id = FILTER_IDX_NONE;
+		}
 	} else {
 		crc_ok = irkmatch_ok = 0U;
-		irkmatch_id = 0xFF;
+		irkmatch_id = FILTER_IDX_NONE;
 	}
 
 	/* Clear radio rx status and events */

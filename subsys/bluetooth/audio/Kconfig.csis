@@ -6,8 +6,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-if BT_AUDIO
-
 #################### Coordinated Set Identification Service ####################
 
 config BT_CSIS
@@ -33,7 +31,6 @@ config BT_CSIS_TEST_SAMPLE_DATA
 config BT_CSIS_ENC_SIRK_SUPPORT
 	bool "Support for encrypted SIRK"
 	default y
-	select BT_SMP_SC_PAIR_ONLY
 	help
 	  Enables support encrypting the SIRK.
 
@@ -46,11 +43,13 @@ config BT_CSIS_MAX_INSTANCE_COUNT
 	  Identification Services. If the service is declared as primary service
 	  then only a single instance is possible.
 
+	  Enabling BT_CAP_ACCEPTOR_SET_MEMBER will take one of the allocated
+	  instances.
+
 ############### DEBUG ###############
 
 config BT_DEBUG_CSIS
 	bool "Coordinated Set Identification Service debug"
-	depends on BT_AUDIO_DEBUG
 	help
 	  Use this option to enable Coordinated Set Identification Service debug
 	  logs for the Bluetooth Audio functionality.
@@ -92,7 +91,6 @@ config BT_CSIS_CLIENT_MAX_CSIS_INSTANCES
 config BT_CSIS_CLIENT_ENC_SIRK_SUPPORT
 	bool "Support for encrypted SIRK"
 	default y
-	select BT_SMP_SC_PAIR_ONLY
 	help
 	  Enables support encrypting the SIRK.
 
@@ -100,7 +98,6 @@ config BT_CSIS_CLIENT_ENC_SIRK_SUPPORT
 
 config BT_DEBUG_CSIS_CLIENT
 	bool "Coordinated Set Identification Profile debug"
-	depends on BT_AUDIO_DEBUG
 	help
 	  Use this option to enable Coordinated Set Identification Profile debug
 	  logs for the Bluetooth Audio functionality.
@@ -109,10 +106,7 @@ endif # BT_CSIS_CLIENT
 
 config BT_DEBUG_CSIS_CRYPTO
 	bool "Coordinated Set Identification Service crypto functions debug"
-	depends on BT_AUDIO_DEBUG
 	depends on BT_CSIS_CLIENT || BT_CSIS
 	help
 	  Use this option to enable Coordinated Set Identification Service
 	  crypto functions debug logs for the Bluetooth Audio functionality.
-
-endif # BT_AUDIO

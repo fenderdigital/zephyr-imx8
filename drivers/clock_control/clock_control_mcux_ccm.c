@@ -6,13 +6,13 @@
 
 #define DT_DRV_COMPAT nxp_imx_ccm
 #include <errno.h>
-#include <soc.h>
-#include <drivers/clock_control.h>
-#include <dt-bindings/clock/imx_ccm.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/drivers/clock_control.h>
+#include <zephyr/dt-bindings/clock/imx_ccm.h>
 #include <fsl_clock.h>
 
 #define LOG_LEVEL CONFIG_CLOCK_CONTROL_LOG_LEVEL
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(clock_control);
 
 #ifdef CONFIG_SPI_MCUX_LPSPI
@@ -53,6 +53,7 @@ static int mcux_ccm_get_subsys_rate(const struct device *dev,
 #else
 	uint32_t clock_name = (uint32_t) sub_system;
 #endif
+	uint32_t mux __unused;
 
 	switch (clock_name) {
 
@@ -94,14 +95,14 @@ static int mcux_ccm_get_subsys_rate(const struct device *dev,
 		break;
 #endif
 
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(usdhc1), okay) && CONFIG_DISK_DRIVER_SDMMC
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(usdhc1), okay) && CONFIG_IMX_USDHC
 	case IMX_CCM_USDHC1_CLK:
 		*rate = CLOCK_GetSysPfdFreq(kCLOCK_Pfd0) /
 				(CLOCK_GetDiv(kCLOCK_Usdhc1Div) + 1U);
 		break;
 #endif
 
-#if DT_NODE_HAS_STATUS(DT_NODELABEL(usdhc2), okay) && CONFIG_DISK_DRIVER_SDMMC
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(usdhc2), okay) && CONFIG_IMX_USDHC
 	case IMX_CCM_USDHC2_CLK:
 		*rate = CLOCK_GetSysPfdFreq(kCLOCK_Pfd0) /
 				(CLOCK_GetDiv(kCLOCK_Usdhc2Div) + 1U);
@@ -131,7 +132,7 @@ static int mcux_ccm_get_subsys_rate(const struct device *dev,
 		uint32_t uart_mux = CLOCK_GetRootMux(clk_root);
 
 		if (uart_mux == 0) {
-			*rate = OSC24M_CLK_FREQ;
+			*rate = MHZ(24);
 		} else if (uart_mux == 1) {
 			*rate = CLOCK_GetPllFreq(kCLOCK_SystemPll1Ctrl) /
 				(CLOCK_GetRootPreDivider(clk_root)) /
@@ -174,19 +175,31 @@ static int mcux_ccm_get_subsys_rate(const struct device *dev,
 	} break;
 #endif
 
+#ifdef CONFIG_COUNTER_MCUX_QTMR
+	case IMX_CCM_QTMR_CLK:
+		*rate = CLOCK_GetIpgFreq();
+		break;
+#endif
+
+#ifdef CONFIG_COUNTER_MCUX_QTMR
+	case IMX_CCM_QTMR_CLK:
+		*rate = CLOCK_GetIpgFreq();
+		break;
+#endif
+
 #ifdef CONFIG_I2S_MCUX_SAI
 	case IMX_CCM_SAI1_CLK:
-		*rate = CLOCK_GetFreq(kCLOCK_AudioPllClk) / 8
+		*rate = CLOCK_GetFreq(kCLOCK_AudioPllClk)
 				/ (CLOCK_GetDiv(kCLOCK_Sai1PreDiv) + 1)
 				/ (CLOCK_GetDiv(kCLOCK_Sai1Div) + 1);
 		break;
 	case IMX_CCM_SAI2_CLK:
-		*rate = CLOCK_GetFreq(kCLOCK_AudioPllClk) / 8
+		*rate = CLOCK_GetFreq(kCLOCK_AudioPllClk)
 				/ (CLOCK_GetDiv(kCLOCK_Sai2PreDiv) + 1)
 				/ (CLOCK_GetDiv(kCLOCK_Sai2Div) + 1);
 		break;
 	case IMX_CCM_SAI3_CLK:
-		*rate = CLOCK_GetFreq(kCLOCK_AudioPllClk) / 8
+		*rate = CLOCK_GetFreq(kCLOCK_AudioPllClk)
 				/ (CLOCK_GetDiv(kCLOCK_Sai3PreDiv) + 1)
 				/ (CLOCK_GetDiv(kCLOCK_Sai3Div) + 1);
 		break;

@@ -11,9 +11,6 @@ properties:
     reg:
       required: true
 
-    label:
-      required: true
-
     "#gpio-cells":
       const: 2
 
@@ -29,6 +26,7 @@ properties:
         - 4
         - 5
         - 6
+        - 7
 
 gpio-cells:
   - pin

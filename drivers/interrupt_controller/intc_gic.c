@@ -10,14 +10,13 @@
  * NOTE: This driver implements the GICv1 and GICv2 interfaces.
  */
 
-#include <devicetree.h>
-#include <sw_isr_table.h>
-#include <dt-bindings/interrupt-controller/arm-gic.h>
-#include <drivers/interrupt_controller/gic.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/sw_isr_table.h>
+#include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
+#include <zephyr/drivers/interrupt_controller/gic.h>
 
-#define CPU_REG_ID(cpu_node_id) DT_REG_ADDR(cpu_node_id),
 static const uint64_t cpu_mpid_list[] = {
-	DT_FOREACH_CHILD_STATUS_OKAY(DT_PATH(cpus), CPU_REG_ID)
+	DT_FOREACH_CHILD_STATUS_OKAY_SEP(DT_PATH(cpus), DT_REG_ADDR, (,))
 };
 
 BUILD_ASSERT(ARRAY_SIZE(cpu_mpid_list) >= CONFIG_MP_NUM_CPUS,
@@ -92,7 +91,7 @@ void arm_gic_eoi(unsigned int irq)
 	 * Ensure the write to peripheral registers are *complete* before the write
 	 * to GIC_EOIR.
 	 *
-	 * Note: The completion gurantee depends on various factors of system design
+	 * Note: The completion guarantee depends on various factors of system design
 	 * and the barrier is the best core can do by which execution of further
 	 * instructions waits till the barrier is alive.
 	 */
@@ -239,7 +238,7 @@ int arm_gic_init(const struct device *unused)
 	return 0;
 }
 
-SYS_INIT(arm_gic_init, PRE_KERNEL_1, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);
+SYS_INIT(arm_gic_init, PRE_KERNEL_1, CONFIG_INTC_INIT_PRIORITY);
 
 #ifdef CONFIG_SMP
 void arm_gic_secondary_init(void)

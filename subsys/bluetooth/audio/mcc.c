@@ -8,20 +8,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
+#include <zephyr/kernel.h>
 #include <zephyr/types.h>
-#include <sys/byteorder.h>
-#include <sys/check.h>
-#include <device.h>
-#include <init.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/sys/check.h>
+#include <zephyr/device.h>
+#include <zephyr/init.h>
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/conn.h>
-#include <bluetooth/gatt.h>
-#include <bluetooth/audio/mcc.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/gatt.h>
+#include <zephyr/bluetooth/audio/mcc.h>
 
-#include "otc.h"
-#include "otc_internal.h"
+#include <zephyr/bluetooth/services/ots.h>
+#include "../services/ots/ots_client_internal.h"
 
 /* TODO: Temporarily copied here from media_proxy_internal.h - clean up */
 /* Debug output of 48 bit Object ID value */
@@ -32,7 +32,7 @@
 		if (IS_ENABLED(CONFIG_BT_DEBUG_MCS)) { \
 			char t[BT_OTS_OBJ_ID_STR_LEN]; \
 			(void)bt_ots_obj_id_to_str(id64, t, sizeof(t)); \
-			BT_DBG(text "0x%s", log_strdup(t)); \
+			BT_DBG(text "0x%s", t); \
 		} \
 	} while (0)
 
@@ -40,9 +40,6 @@
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_DEBUG_MCC)
 #define LOG_MODULE_NAME bt_mcc
 #include "common/log.h"
-
-#define FIRST_HANDLE			0x0001
-#define LAST_HANDLE			0xFFFF
 
 struct mcs_instance_t {
 	uint16_t start_handle;
@@ -77,42 +74,25 @@ struct mcs_instance_t {
 	uint16_t content_control_id_handle;
 
 	struct bt_gatt_subscribe_params player_name_sub_params;
-	struct bt_gatt_discover_params player_name_sub_disc_params;
 	struct bt_gatt_subscribe_params track_changed_sub_params;
-	struct bt_gatt_discover_params track_changed_sub_disc_params;
 	struct bt_gatt_subscribe_params track_title_sub_params;
-	struct bt_gatt_discover_params track_title_sub_disc_params;
 	struct bt_gatt_subscribe_params track_duration_sub_params;
-	struct bt_gatt_discover_params track_duration_sub_disc_params;
 	struct bt_gatt_subscribe_params track_position_sub_params;
-	struct bt_gatt_discover_params track_position_sub_disc_params;
 	struct bt_gatt_subscribe_params playback_speed_sub_params;
-	struct bt_gatt_discover_params playback_speed_sub_disc_params;
 	struct bt_gatt_subscribe_params seeking_speed_sub_params;
-	struct bt_gatt_discover_params seeking_speed_sub_disc_params;
 #ifdef CONFIG_BT_MCC_OTS
 	struct bt_gatt_subscribe_params current_track_obj_sub_params;
-	struct bt_gatt_discover_params current_track_sub_disc_params;
 	struct bt_gatt_subscribe_params next_track_obj_sub_params;
-	struct bt_gatt_discover_params next_track_obj_sub_disc_params;
 	struct bt_gatt_subscribe_params parent_group_obj_sub_params;
-	struct bt_gatt_discover_params parent_group_obj_sub_disc_params;
 	struct bt_gatt_subscribe_params current_group_obj_sub_params;
-	struct bt_gatt_discover_params current_group_obj_sub_disc_params;
 #endif /* CONFIG_BT_MCC_OTS */
 	struct bt_gatt_subscribe_params playing_order_sub_params;
-	struct bt_gatt_discover_params playing_order_sub_disc_params;
 	struct bt_gatt_subscribe_params media_state_sub_params;
-	struct bt_gatt_discover_params media_state_sub_disc_params;
 	struct bt_gatt_subscribe_params cp_sub_params;
-	struct bt_gatt_discover_params cp_sub_disc_params;
 	struct bt_gatt_subscribe_params opcodes_supported_sub_params;
-	struct bt_gatt_discover_params opcodes_supported_sub_disc_params;
 #ifdef CONFIG_BT_MCC_OTS
 	struct bt_gatt_subscribe_params scp_sub_params;
-	struct bt_gatt_discover_params scp_sub_disc_params;
 	struct bt_gatt_subscribe_params search_results_obj_sub_params;
-	struct bt_gatt_discover_params search_results_obj_sub_disc_params;
 #endif /* CONFIG_BT_MCC_OTS */
 
 	/* The write buffer is used for
@@ -143,7 +123,7 @@ struct mcs_instance_t {
 	bool busy;
 
 #ifdef CONFIG_BT_MCC_OTS
-	struct bt_otc_instance_t otc;
+	struct bt_ots_client otc;
 #endif /* CONFIG_BT_MCC_OTS */
 };
 
@@ -160,22 +140,22 @@ static bool subscribe_all;
 
 #ifdef CONFIG_BT_MCC_OTS
 NET_BUF_SIMPLE_DEFINE_STATIC(otc_obj_buf, CONFIG_BT_MCC_OTC_OBJ_BUF_SIZE);
-static struct bt_otc_cb otc_cb;
+static struct bt_ots_client_cb otc_cb;
 #endif /* CONFIG_BT_MCC_OTS */
 
 
 
 #ifdef CONFIG_BT_MCC_OTS
-void on_obj_selected(struct bt_conn *conn, int err,
-		     struct bt_otc_instance_t *otc_inst);
+void on_obj_selected(struct bt_ots_client *otc_inst,
+		     struct bt_conn *conn, int err);
 
-void on_object_metadata(struct bt_conn *conn, int err,
-			struct bt_otc_instance_t *otc_inst,
+void on_object_metadata(struct bt_ots_client *otc_inst,
+			struct bt_conn *conn, int err,
 			uint8_t metadata_read);
 
-int on_icon_content(struct bt_conn *conn, uint32_t offset, uint32_t len,
-		    uint8_t *data_p,
-		    bool is_complete, struct bt_otc_instance_t *otc_inst);
+int on_icon_content(struct bt_ots_client *otc_inst,
+		    struct bt_conn *conn, uint32_t offset,
+		    uint32_t len, uint8_t *data_p, bool is_complete);
 #endif /* CONFIG_BT_MCC_OTS */
 
 
@@ -184,7 +164,7 @@ static uint8_t mcc_read_player_name_cb(struct bt_conn *conn, uint8_t err,
 				       const void *data, uint16_t length)
 {
 	int cb_err = err;
-	char name[CONFIG_BT_MCS_MEDIA_PLAYER_NAME_MAX];
+	char name[CONFIG_BT_MCC_MEDIA_PLAYER_NAME_MAX];
 
 	cur_mcs_inst->busy = false;
 	BT_DBG("err: 0x%02x, length: %d, data: %p", err, length, data);
@@ -200,9 +180,9 @@ static uint8_t mcc_read_player_name_cb(struct bt_conn *conn, uint8_t err,
 			length = sizeof(name) - 1;
 		}
 
-		memcpy(&name, data, length);
+		(void)memcpy(&name, data, length);
 		name[length] = '\0';
-		BT_DBG("Player name: %s", log_strdup(name));
+		BT_DBG("Player name: %s", name);
 	}
 
 	if (mcc_cb && mcc_cb->read_player_name) {
@@ -247,7 +227,7 @@ static uint8_t mcc_read_icon_url_cb(struct bt_conn *conn, uint8_t err,
 				    const void *data, uint16_t length)
 {
 	int cb_err = err;
-	char url[CONFIG_BT_MCS_ICON_URL_MAX];
+	char url[CONFIG_BT_MCC_ICON_URL_MAX];
 
 	cur_mcs_inst->busy = false;
 	BT_DBG("err: 0x%02x, length: %d, data: %p", err, length, data);
@@ -259,9 +239,9 @@ static uint8_t mcc_read_icon_url_cb(struct bt_conn *conn, uint8_t err,
 		cb_err = BT_ATT_ERR_INSUFFICIENT_RESOURCES;
 	} else {
 		BT_HEXDUMP_DBG(data, length, "Icon URL");
-		memcpy(&url, data, length);
+		(void)memcpy(&url, data, length);
 		url[length] = '\0';
-		BT_DBG("Icon URL: %s", log_strdup(url));
+		BT_DBG("Icon URL: %s", url);
 	}
 
 	if (mcc_cb && mcc_cb->read_icon_url) {
@@ -276,7 +256,7 @@ static uint8_t mcc_read_track_title_cb(struct bt_conn *conn, uint8_t err,
 				       const void *data, uint16_t length)
 {
 	int cb_err = err;
-	char title[CONFIG_BT_MCS_TRACK_TITLE_MAX];
+	char title[CONFIG_BT_MCC_TRACK_TITLE_MAX];
 
 	cur_mcs_inst->busy = false;
 	if (err) {
@@ -289,9 +269,9 @@ static uint8_t mcc_read_track_title_cb(struct bt_conn *conn, uint8_t err,
 			/* If the description is too long; clip it. */
 			length = sizeof(title) - 1;
 		}
-		memcpy(&title, data, length);
+		(void)memcpy(&title, data, length);
 		title[length] = '\0';
-		BT_DBG("Track title: %s", log_strdup(title));
+		BT_DBG("Track title: %s", title);
 	}
 
 	if (mcc_cb && mcc_cb->read_track_title) {
@@ -778,9 +758,9 @@ static void mcs_write_cp_cb(struct bt_conn *conn, uint8_t err,
 		BT_DBG("length: %d, data: %p", params->length, params->data);
 		cb_err = BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
 	} else {
-		memcpy(&cmd.opcode, params->data, sizeof(cmd.opcode));
+		(void)memcpy(&cmd.opcode, params->data, sizeof(cmd.opcode));
 		if (params->length == sizeof(cmd.opcode) + sizeof(cmd.param)) {
-			memcpy(&cmd.param,
+			(void)memcpy(&cmd.param,
 			       (char *)(params->data) + sizeof(cmd.opcode),
 			       sizeof(cmd.param));
 			cmd.use_param = true;
@@ -789,7 +769,7 @@ static void mcs_write_cp_cb(struct bt_conn *conn, uint8_t err,
 	}
 
 	if (mcc_cb && mcc_cb->send_cmd) {
-		mcc_cb->send_cmd(conn, cb_err, cmd);
+		mcc_cb->send_cmd(conn, cb_err, &cmd);
 	}
 }
 
@@ -838,12 +818,12 @@ static void mcs_write_scp_cb(struct bt_conn *conn, uint8_t err,
 		cb_err = BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
 	} else {
 		search.len = params->length;
-		memcpy(search.search, params->data, params->length);
+		(void)memcpy(search.search, params->data, params->length);
 		BT_DBG("Length of returned value in callback: %d", search.len);
 	}
 
 	if (mcc_cb && mcc_cb->send_search) {
-		mcc_cb->send_search(conn, cb_err, search);
+		mcc_cb->send_search(conn, cb_err, &search);
 	}
 }
 
@@ -910,6 +890,10 @@ static uint8_t mcs_notify_handler(struct bt_conn *conn,
 				  const void *data, uint16_t length)
 {
 	uint16_t handle = params->value_handle;
+
+	if (conn == NULL) {
+		return BT_GATT_ITER_CONTINUE;
+	}
 
 	BT_DBG("Notification, handle: %d", handle);
 
@@ -1006,7 +990,7 @@ static uint8_t mcs_notify_handler(struct bt_conn *conn,
 			}
 
 			if (mcc_cb && mcc_cb->cmd_ntf) {
-				mcc_cb->cmd_ntf(conn, cb_err, ntf);
+				mcc_cb->cmd_ntf(conn, cb_err, &ntf);
 			}
 
 		} else if (handle == cur_mcs_inst->opcodes_supported_handle) {
@@ -1046,6 +1030,23 @@ static uint8_t mcs_notify_handler(struct bt_conn *conn,
 		}
 	}
 	return BT_GATT_ITER_CONTINUE;
+}
+
+/* Called when discovery is completed - successfully or with error */
+static void discovery_complete(struct bt_conn *conn, int err)
+{
+	BT_DBG("Discovery completed, err: %d", err);
+
+	/* TODO: Handle resets of instance, and re-discovery.
+	 * For now, reset instance on error.
+	 */
+	if (err) {
+		cur_mcs_inst = NULL;
+	}
+
+	if (mcc_cb && mcc_cb->discover_mcs) {
+		mcc_cb->discover_mcs(conn, err);
+	}
 }
 
 #ifdef CONFIG_BT_MCC_OTS
@@ -1105,7 +1106,7 @@ static uint8_t discover_otc_char_func(struct bt_conn *conn,
 			sub_params->end_handle = cur_mcs_inst->otc.end_handle;
 			sub_params->value = BT_GATT_CCC_INDICATE;
 			sub_params->value_handle = chrc->value_handle;
-			sub_params->notify = bt_otc_indicate_handler;
+			sub_params->notify = bt_ots_client_indicate_handler;
 
 			bt_gatt_subscribe(conn, sub_params);
 		}
@@ -1115,19 +1116,16 @@ static uint8_t discover_otc_char_func(struct bt_conn *conn,
 
 	/* No more attributes found */
 	cur_mcs_inst->otc.cb = &otc_cb;
-	bt_otc_register(&cur_mcs_inst->otc);
+	bt_ots_client_register(&cur_mcs_inst->otc);
 
 	BT_DBG("Setup complete for included OTS");
 	(void)memset(params, 0, sizeof(*params));
 
-	if (mcc_cb && mcc_cb->discover_mcs) {
-		mcc_cb->discover_mcs(conn, err);
-	}
+	discovery_complete(conn, err);
 
 	return BT_GATT_ITER_STOP;
 }
 #endif /* CONFIG_BT_MCC_OTS */
-
 
 #ifdef CONFIG_BT_MCC_OTS
 /* This function is called when an included service is found.
@@ -1174,11 +1172,8 @@ static uint8_t discover_include_func(struct bt_conn *conn,
 		BT_DBG("Start discovery of OTS characteristics");
 		err = bt_gatt_discover(conn, &discover_params);
 		if (err) {
-			BT_DBG("Discovery of OTS chars. failed (err %d)",
-			       err);
-			if (mcc_cb && mcc_cb->discover_mcs) {
-				mcc_cb->discover_mcs(conn, err);
-			}
+			BT_DBG("Discovery of OTS chars. failed");
+			discovery_complete(conn, err);
 		}
 		return BT_GATT_ITER_STOP;
 	}
@@ -1187,26 +1182,319 @@ static uint8_t discover_include_func(struct bt_conn *conn,
 	/* This is OK, the server may not support OTS. But in that case,
 	 *  discovery stops here.
 	 */
-	if (mcc_cb && mcc_cb->discover_mcs) {
-		mcc_cb->discover_mcs(conn, err);
-	}
+	discovery_complete(conn, err);
 	return BT_GATT_ITER_STOP;
+}
+
+/* Start discovery of included services */
+static void discover_included(struct bt_conn *conn)
+{
+	int err;
+
+	discover_params.start_handle = cur_mcs_inst->start_handle;
+	discover_params.end_handle = cur_mcs_inst->end_handle;
+	discover_params.type = BT_GATT_DISCOVER_INCLUDE;
+	discover_params.func = discover_include_func;
+
+	BT_DBG("Start discovery of included services");
+	err = bt_gatt_discover(conn, &discover_params);
+	if (err) {
+		BT_DBG("Discovery of included service failed: %d", err);
+		discovery_complete(conn, err);
+	}
 }
 #endif /* CONFIG_BT_MCC_OTS */
 
+static bool subscribe_next_mcs_char(struct bt_conn *conn);
+
+/* This function will subscribe to GMCS CCCDs.
+ * After this, the function will start discovery of included services.
+ */
+static void subscribe_mcs_char_func(struct bt_conn *conn, uint8_t err,
+				    struct bt_gatt_subscribe_params *params)
+{
+	bool subscription_done;
+
+	if (err) {
+		BT_DBG("Subscription callback error: %u", err);
+		discovery_complete(conn, err);
+		return;
+	}
+
+	BT_DBG("Subscribed: value handle: %d, ccc handle: %d",
+	       params->value_handle, params->ccc_handle);
+
+	/* Subscribe to next characteristic */
+	subscription_done = subscribe_next_mcs_char(conn);
+
+	if (subscription_done) {
+#ifdef CONFIG_BT_MCC_OTS
+		/* Start discovery of included services to find OTS */
+		discover_included(conn);
+#else
+		/* If OTS is not configured, discovery ends here */
+		discovery_complete(conn, 0);
+#endif /* CONFIG_BT_MCC_OTS */
+	}
+}
+
+/* Subscribe to a characteristic - helper function */
+static int do_subscribe(struct bt_conn *conn, uint16_t handle,
+			 struct bt_gatt_subscribe_params *sub_params)
+{
+	/* With ccc_handle == 0 it will use auto discovery */
+	sub_params->ccc_handle = 0;
+	sub_params->end_handle = cur_mcs_inst->end_handle;
+	sub_params->value_handle = handle;
+	sub_params->notify = mcs_notify_handler;
+	sub_params->subscribe = subscribe_mcs_char_func;
+	/* disc_params pointer is also used as subscription flag */
+	sub_params->disc_params = &discover_params;
+
+	BT_DBG("Subscring to handle %d", handle);
+	return bt_gatt_subscribe(conn, sub_params);
+}
+
+/* Subscribe to the next GMCS CCCD.
+ * @return true if there are no more characteristics to subscribe to
+ */
+static bool subscribe_next_mcs_char(struct bt_conn *conn)
+{
+	struct bt_gatt_subscribe_params *sub_params = NULL;
+	int err = 0;
+
+	/* The characteristics may be in any order on the server, and
+	 * not all of them may exist => need to check all.
+	 * For each of the subscribable characteristics
+	 * - check if we have a handle for it
+	 * - check sub_params.disc_params pointer to see if we have
+	 *   already subscribed to it (set in do_subscribe() ).
+	 */
+
+	if (cur_mcs_inst->player_name_handle &&
+	    cur_mcs_inst->player_name_sub_params.value &&
+	    cur_mcs_inst->player_name_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->player_name_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->player_name_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+	if (cur_mcs_inst->track_changed_handle &&
+	    cur_mcs_inst->track_changed_sub_params.value &&
+	    cur_mcs_inst->track_changed_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->track_changed_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->track_changed_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+	if (cur_mcs_inst->track_title_handle &&
+	    cur_mcs_inst->track_title_sub_params.value &&
+	    cur_mcs_inst->track_title_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->track_title_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->track_title_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+	if (cur_mcs_inst->track_duration_handle &&
+	    cur_mcs_inst->track_duration_sub_params.value &&
+	    cur_mcs_inst->track_duration_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->track_duration_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->track_duration_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+	if (cur_mcs_inst->track_position_handle &&
+	    cur_mcs_inst->track_position_sub_params.value &&
+	    cur_mcs_inst->track_position_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->track_position_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->track_position_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+	if (cur_mcs_inst->playback_speed_handle &&
+	    cur_mcs_inst->playback_speed_sub_params.value &&
+	    cur_mcs_inst->playback_speed_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->playback_speed_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->playback_speed_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+	if (cur_mcs_inst->seeking_speed_handle &&
+	    cur_mcs_inst->seeking_speed_sub_params.value &&
+	    cur_mcs_inst->seeking_speed_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->seeking_speed_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->seeking_speed_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+#ifdef CONFIG_BT_MCC_OTS
+	if (cur_mcs_inst->current_track_obj_id_handle &&
+	    cur_mcs_inst->current_track_obj_sub_params.value &&
+	    cur_mcs_inst->current_track_obj_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->current_track_obj_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->current_track_obj_id_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+	if (cur_mcs_inst->next_track_obj_id_handle &&
+	    cur_mcs_inst->next_track_obj_sub_params.value &&
+	    cur_mcs_inst->next_track_obj_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->next_track_obj_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->next_track_obj_id_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+	if (cur_mcs_inst->parent_group_obj_id_handle &&
+	    cur_mcs_inst->parent_group_obj_sub_params.value &&
+	    cur_mcs_inst->parent_group_obj_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->parent_group_obj_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->parent_group_obj_id_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+	if (cur_mcs_inst->current_group_obj_id_handle &&
+	    cur_mcs_inst->current_group_obj_sub_params.value &&
+	    cur_mcs_inst->current_group_obj_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->current_group_obj_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->current_group_obj_id_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+#endif /* CONFIG_BT_MCC_OTS */
+
+	if (cur_mcs_inst->playing_order_handle &&
+	    cur_mcs_inst->playing_order_sub_params.value &&
+	    cur_mcs_inst->playing_order_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->playing_order_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->playing_order_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+	if (cur_mcs_inst->media_state_handle &&
+	    cur_mcs_inst->media_state_sub_params.value &&
+	    cur_mcs_inst->media_state_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->media_state_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->media_state_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+	if (cur_mcs_inst->cp_handle &&
+	    cur_mcs_inst->cp_sub_params.value &&
+	    cur_mcs_inst->cp_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->cp_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->cp_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+	if (cur_mcs_inst->opcodes_supported_handle &&
+	    cur_mcs_inst->opcodes_supported_sub_params.value &&
+	    cur_mcs_inst->opcodes_supported_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->opcodes_supported_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->opcodes_supported_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+#ifdef CONFIG_BT_MCC_OTS
+	if (cur_mcs_inst->scp_handle &&
+	    cur_mcs_inst->scp_sub_params.value &&
+	    cur_mcs_inst->scp_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->scp_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->scp_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+
+	if (cur_mcs_inst->search_results_obj_id_handle &&
+	    cur_mcs_inst->search_results_obj_sub_params.value &&
+	    cur_mcs_inst->search_results_obj_sub_params.disc_params == NULL) {
+		sub_params = &cur_mcs_inst->search_results_obj_sub_params;
+		err = do_subscribe(conn, cur_mcs_inst->search_results_obj_id_handle, sub_params);
+		if (err) {
+			BT_DBG("Could not subscribe: %d", err);
+			discovery_complete(conn, err);
+		}
+		return false;
+	}
+#endif /* CONFIG_BT_MCC_OTS */
+
+	/* If we have come here, there are no more characteristics to
+	 * subscribe to, and we are done.
+	 */
+	return true;
+}
 
 /* This function is called when characteristics are found.
- * The function will store handles, and optionally subscribe to, GMCS
- * characteristics.
- * After this, the function will start discovery of included services.
+ * The function will store handles to GMCS characteristics.
+ * After this, the function will start subscription to characteristics
  */
 static uint8_t discover_mcs_char_func(struct bt_conn *conn,
 				      const struct bt_gatt_attr *attr,
 				      struct bt_gatt_discover_params *params)
 {
 	struct bt_gatt_chrc *chrc;
-	struct bt_gatt_subscribe_params *sub_params = NULL;
-	int err = 0;
+	bool subscription_done = true;
 
 	if (attr) {
 		/* Found an attribute */
@@ -1224,8 +1512,11 @@ static uint8_t discover_mcs_char_func(struct bt_conn *conn,
 		if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_PLAYER_NAME)) {
 			BT_DBG("Player name, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->player_name_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->player_name_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->player_name_sub_disc_params;
+			/* Use discovery params pointer as subscription flag */
+			cur_mcs_inst->player_name_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->player_name_sub_params.value = BT_GATT_CCC_NOTIFY;
+			}
 #ifdef CONFIG_BT_MCC_OTS
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_ICON_OBJ_ID)) {
 			BT_DBG("Icon Object, UUID: %s", bt_uuid_str(chrc->uuid));
@@ -1237,33 +1528,45 @@ static uint8_t discover_mcs_char_func(struct bt_conn *conn,
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_TRACK_CHANGED)) {
 			BT_DBG("Track Changed, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->track_changed_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->track_changed_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->track_changed_sub_disc_params;
+			cur_mcs_inst->track_changed_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->track_changed_sub_params.value = BT_GATT_CCC_NOTIFY;
+			}
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_TRACK_TITLE)) {
 			BT_DBG("Track Title, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->track_title_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->track_title_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->track_title_sub_disc_params;
+			cur_mcs_inst->track_title_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->track_title_sub_params.value = BT_GATT_CCC_NOTIFY;
+			}
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_TRACK_DURATION)) {
 			BT_DBG("Track Duration, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->track_duration_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->track_duration_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->track_duration_sub_disc_params;
+			cur_mcs_inst->track_duration_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->track_duration_sub_params.value = BT_GATT_CCC_NOTIFY;
+			}
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_TRACK_POSITION)) {
 			BT_DBG("Track Position, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->track_position_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->track_position_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->track_position_sub_disc_params;
+			cur_mcs_inst->track_position_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->track_position_sub_params.value = BT_GATT_CCC_NOTIFY;
+			}
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_PLAYBACK_SPEED)) {
 			BT_DBG("Playback Speed, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->playback_speed_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->playback_speed_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->playback_speed_sub_disc_params;
+			cur_mcs_inst->playback_speed_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->playback_speed_sub_params.value = BT_GATT_CCC_NOTIFY;
+			}
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_SEEKING_SPEED)) {
 			BT_DBG("Seeking Speed, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->seeking_speed_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->seeking_speed_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->seeking_speed_sub_disc_params;
+			cur_mcs_inst->seeking_speed_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->seeking_speed_sub_params.value = BT_GATT_CCC_NOTIFY;
+			}
 #ifdef CONFIG_BT_MCC_OTS
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_TRACK_SEGMENTS_OBJ_ID)) {
 			BT_DBG("Track Segments Object, UUID: %s", bt_uuid_str(chrc->uuid));
@@ -1271,59 +1574,84 @@ static uint8_t discover_mcs_char_func(struct bt_conn *conn,
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_CURRENT_TRACK_OBJ_ID)) {
 			BT_DBG("Current Track Object, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->current_track_obj_id_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->current_track_obj_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->current_track_sub_disc_params;
+			cur_mcs_inst->current_track_obj_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->current_track_obj_sub_params.value =
+					BT_GATT_CCC_NOTIFY;
+			}
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_NEXT_TRACK_OBJ_ID)) {
 			BT_DBG("Next Track Object, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->next_track_obj_id_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->next_track_obj_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->next_track_obj_sub_disc_params;
+			cur_mcs_inst->next_track_obj_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->next_track_obj_sub_params.value = BT_GATT_CCC_NOTIFY;
+			}
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_PARENT_GROUP_OBJ_ID)) {
 			BT_DBG("Parent Group Object, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->parent_group_obj_id_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->parent_group_obj_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->parent_group_obj_sub_disc_params;
+			cur_mcs_inst->parent_group_obj_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->parent_group_obj_sub_params.value =
+					BT_GATT_CCC_NOTIFY;
+			}
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_CURRENT_GROUP_OBJ_ID)) {
 			BT_DBG("Group Object, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->current_group_obj_id_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->current_group_obj_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->current_group_obj_sub_disc_params;
+			cur_mcs_inst->current_group_obj_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->current_group_obj_sub_params.value =
+					BT_GATT_CCC_NOTIFY;
+			}
 #endif /* CONFIG_BT_MCC_OTS */
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_PLAYING_ORDER)) {
 			BT_DBG("Playing Order, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->playing_order_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->playing_order_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->playing_order_sub_disc_params;
+			cur_mcs_inst->playing_order_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->playing_order_sub_params.value = BT_GATT_CCC_NOTIFY;
+			}
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_PLAYING_ORDERS)) {
 			BT_DBG("Playing Orders supported, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->playing_orders_supported_handle = chrc->value_handle;
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_MEDIA_STATE)) {
 			BT_DBG("Media State, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->media_state_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->media_state_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->media_state_sub_disc_params;
+			cur_mcs_inst->media_state_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->media_state_sub_params.value = BT_GATT_CCC_NOTIFY;
+			}
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_MEDIA_CONTROL_POINT)) {
 			BT_DBG("Media Control Point, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->cp_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->cp_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->cp_sub_disc_params;
+			cur_mcs_inst->cp_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->cp_sub_params.value = BT_GATT_CCC_NOTIFY;
+			}
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_MEDIA_CONTROL_OPCODES)) {
 			BT_DBG("Media control opcodes supported, UUID: %s",
 			       bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->opcodes_supported_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->opcodes_supported_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->opcodes_supported_sub_disc_params;
+			cur_mcs_inst->opcodes_supported_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->opcodes_supported_sub_params.value =
+					BT_GATT_CCC_NOTIFY;
+			}
 #ifdef CONFIG_BT_MCC_OTS
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_SEARCH_CONTROL_POINT)) {
 			BT_DBG("Search control point, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->scp_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->scp_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->scp_sub_disc_params;
+			cur_mcs_inst->scp_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->scp_sub_params.value = BT_GATT_CCC_NOTIFY;
+			}
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_MCS_SEARCH_RESULTS_OBJ_ID)) {
 			BT_DBG("Search Results object, UUID: %s", bt_uuid_str(chrc->uuid));
 			cur_mcs_inst->search_results_obj_id_handle = chrc->value_handle;
-			sub_params = &cur_mcs_inst->search_results_obj_sub_params;
-			sub_params->disc_params = &cur_mcs_inst->search_results_obj_sub_disc_params;
+			cur_mcs_inst->search_results_obj_sub_params.disc_params = NULL;
+			if (chrc->properties & BT_GATT_CHRC_NOTIFY) {
+				cur_mcs_inst->search_results_obj_sub_params.value =
+					BT_GATT_CCC_NOTIFY;
+			}
 #endif /* CONFIG_BT_MCC_OTS */
 		} else if (!bt_uuid_cmp(chrc->uuid, BT_UUID_CCID)) {
 			BT_DBG("Content Control ID, UUID: %s", bt_uuid_str(chrc->uuid));
@@ -1331,55 +1659,36 @@ static uint8_t discover_mcs_char_func(struct bt_conn *conn,
 		}
 
 
-		if (subscribe_all && sub_params) {
-			BT_DBG("Subscribing - handle: 0x%04x", attr->handle);
-
-			/* With ccc_handle == 0 it will use auto discovery */
-			sub_params->ccc_handle = 0;
-			sub_params->end_handle = cur_mcs_inst->end_handle;
-			sub_params->value = BT_GATT_CCC_NOTIFY;
-			sub_params->value_handle = chrc->value_handle;
-			sub_params->notify = mcs_notify_handler;
-			bt_gatt_subscribe(conn, sub_params);
-		}
-
 		/* Continue to search for more attributes */
 		return BT_GATT_ITER_CONTINUE;
 	}
 
 	/* No more attributes found */
-	BT_DBG("Setup complete for GMCS");
+	BT_DBG("GMCS characteristics found");
 	(void)memset(params, 0, sizeof(*params));
 
+	/* Either subscribe to characteristics, or continue to discovery of
+	 *included services.
+	 * Subscription is done after discovery, not in parallel with it,
+	 * to avoid queuing many ATT requests that requires buffers.
+	 */
+	if (subscribe_all) {
+		subscription_done = subscribe_next_mcs_char(conn);
+	}
+
+	if (subscription_done) {
+		/* Not subscribing, or there was nothing to subscribe to */
 #ifdef CONFIG_BT_MCC_OTS
-
-	/* Discover included services */
-	discover_params.start_handle = cur_mcs_inst->start_handle;
-	discover_params.end_handle = cur_mcs_inst->end_handle;
-	discover_params.type = BT_GATT_DISCOVER_INCLUDE;
-	discover_params.func = discover_include_func;
-
-	BT_DBG("Start discovery of included services");
-	err = bt_gatt_discover(conn, &discover_params);
-	if (err) {
-		BT_DBG("Discover of included service failed (err %d)", err);
-		if (mcc_cb && mcc_cb->discover_mcs) {
-			mcc_cb->discover_mcs(conn, err);
-		}
-	}
-
+		/* Start discovery of included services to find OTS */
+		discover_included(conn);
 #else
-
-	/* If OTS is not configured, discovery ends here */
-	if (mcc_cb && mcc_cb->discover_mcs) {
-		mcc_cb->discover_mcs(conn, err);
-	}
-
+		/* If OTS is not configured, discovery ends here */
+		discovery_complete(conn, 0);
 #endif /* CONFIG_BT_MCC_OTS */
+	}
 
 	return BT_GATT_ITER_STOP;
 }
-
 
 /* This function is called when a (primary) GMCS service has been discovered.
  * The function will store the start and end handle for the service. It will
@@ -1413,7 +1722,7 @@ static uint8_t discover_primary_func(struct bt_conn *conn,
 		cur_mcs_inst->start_handle = attr->handle + 1;
 		cur_mcs_inst->end_handle = prim_service->end_handle;
 
-		/* Start discovery of characeristics */
+		/* Start discovery of characteristics */
 		discover_params.uuid = NULL;
 		discover_params.start_handle = cur_mcs_inst->start_handle;
 		discover_params.end_handle = cur_mcs_inst->end_handle;
@@ -1423,11 +1732,8 @@ static uint8_t discover_primary_func(struct bt_conn *conn,
 		BT_DBG("Start discovery of GMCS characteristics");
 		err = bt_gatt_discover(conn, &discover_params);
 		if (err) {
-			BT_DBG("Discover failed (err %d)", err);
-			cur_mcs_inst = NULL;
-			if (mcc_cb && mcc_cb->discover_mcs) {
-				mcc_cb->discover_mcs(conn, err);
-			}
+			BT_DBG("Discovery failed: %d", err);
+			discovery_complete(conn, err);
 		}
 		return BT_GATT_ITER_STOP;
 	}
@@ -1435,9 +1741,7 @@ static uint8_t discover_primary_func(struct bt_conn *conn,
 	/* No attribute of the searched for type found */
 	BT_DBG("Could not find an GMCS instance on the server");
 	cur_mcs_inst = NULL;
-	if (mcc_cb && mcc_cb->discover_mcs) {
-		mcc_cb->discover_mcs(conn, -ENODATA);
-	}
+	discovery_complete(conn, -ENODATA);
 	return BT_GATT_ITER_STOP;
 }
 
@@ -1451,13 +1755,13 @@ int bt_mcc_init(struct bt_mcc_cb *cb)
 	/* TODO: Have one single content callback. */
 	/* For now: Use the icon callback for content - it is the first, */
 	/* and this will anyway be reset later. */
-	otc_cb.content_cb  = on_icon_content;
-	otc_cb.obj_selected = on_obj_selected;
-	otc_cb.metadata_cb = on_object_metadata;
+	otc_cb.obj_data_read     = on_icon_content;
+	otc_cb.obj_selected      = on_obj_selected;
+	otc_cb.obj_metadata_read = on_object_metadata;
 
-	BT_DBG("Current object selected callback: %p", otc_cb.obj_selected);
-	BT_DBG("Content callback: %p", otc_cb.content_cb);
-	BT_DBG("Metadata callback: %p", otc_cb.metadata_cb);
+	BT_DBG("Object selected callback: %p", otc_cb.obj_selected);
+	BT_DBG("Object content callback: %p", otc_cb.obj_data_read);
+	BT_DBG("Object metadata callback: %p", otc_cb.obj_metadata_read);
 #endif /* CONFIG_BT_MCC_OTS */
 
 	return 0;
@@ -1471,8 +1775,9 @@ int bt_mcc_init(struct bt_mcc_cb *cb)
  * The order of discovery is follows:
  * 1: Discover GMCS primary service (started here)
  * 2: Discover characteristics of GMCS
- * 3: Discover OTS service included in GMCS
- * 4: Discover characteristics of OTS
+ * 3: Subscribe to characteristics of GMCS
+ * 4: Discover OTS service included in GMCS
+ * 5: Discover characteristics of OTS and subscribe to them
  */
 int bt_mcc_discover_mcs(struct bt_conn *conn, bool subscribe)
 {
@@ -1485,13 +1790,13 @@ int bt_mcc_discover_mcs(struct bt_conn *conn, bool subscribe)
 	subscribe_all = subscribe;
 	memset(&discover_params, 0, sizeof(discover_params));
 	memset(&mcs_inst, 0, sizeof(mcs_inst));
-	memcpy(&uuid, BT_UUID_GMCS, sizeof(uuid));
+	(void)memcpy(&uuid, BT_UUID_GMCS, sizeof(uuid));
 
 	discover_params.func = discover_primary_func;
 	discover_params.uuid = &uuid.uuid;
 	discover_params.type = BT_GATT_DISCOVER_PRIMARY;
-	discover_params.start_handle = FIRST_HANDLE;
-	discover_params.end_handle = LAST_HANDLE;
+	discover_params.start_handle = BT_ATT_FIRST_ATTRIBUTE_HANDLE;
+	discover_params.end_handle = BT_ATT_LAST_ATTRIBUTE_HANDLE;
 
 	BT_DBG("start discovery of GMCS primary service");
 	return bt_gatt_discover(conn, &discover_params);
@@ -1502,7 +1807,7 @@ int bt_mcc_read_player_name(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1531,7 +1836,7 @@ int bt_mcc_read_icon_obj_id(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1559,7 +1864,7 @@ int bt_mcc_read_icon_url(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1586,7 +1891,7 @@ int bt_mcc_read_track_title(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1613,7 +1918,7 @@ int bt_mcc_read_track_duration(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1640,7 +1945,7 @@ int bt_mcc_read_track_position(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1667,7 +1972,7 @@ int bt_mcc_set_track_position(struct bt_conn *conn, int32_t pos)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1678,7 +1983,7 @@ int bt_mcc_set_track_position(struct bt_conn *conn, int32_t pos)
 		return -EBUSY;
 	}
 
-	memcpy(cur_mcs_inst->write_buf, &pos, sizeof(pos));
+	(void)memcpy(cur_mcs_inst->write_buf, &pos, sizeof(pos));
 
 	cur_mcs_inst->write_params.offset = 0;
 	cur_mcs_inst->write_params.data = cur_mcs_inst->write_buf;
@@ -1700,7 +2005,7 @@ int bt_mcc_read_playback_speed(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1727,7 +2032,7 @@ int bt_mcc_set_playback_speed(struct bt_conn *conn, int8_t speed)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1738,7 +2043,7 @@ int bt_mcc_set_playback_speed(struct bt_conn *conn, int8_t speed)
 		return -EBUSY;
 	}
 
-	memcpy(cur_mcs_inst->write_buf, &speed, sizeof(speed));
+	(void)memcpy(cur_mcs_inst->write_buf, &speed, sizeof(speed));
 
 	cur_mcs_inst->write_params.offset = 0;
 	cur_mcs_inst->write_params.data = cur_mcs_inst->write_buf;
@@ -1760,7 +2065,7 @@ int bt_mcc_read_seeking_speed(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1788,7 +2093,7 @@ int bt_mcc_read_segments_obj_id(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1815,7 +2120,7 @@ int bt_mcc_read_current_track_obj_id(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1842,7 +2147,7 @@ int bt_mcc_set_current_track_obj_id(struct bt_conn *conn, uint64_t obj_id)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1878,7 +2183,7 @@ int bt_mcc_read_next_track_obj_id(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1905,7 +2210,7 @@ int bt_mcc_set_next_track_obj_id(struct bt_conn *conn, uint64_t obj_id)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1941,7 +2246,7 @@ int bt_mcc_read_parent_group_obj_id(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1968,7 +2273,7 @@ int bt_mcc_read_current_group_obj_id(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -1995,7 +2300,7 @@ int bt_mcc_set_current_group_obj_id(struct bt_conn *conn, uint64_t obj_id)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -2032,7 +2337,7 @@ int bt_mcc_read_playing_order(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -2059,7 +2364,7 @@ int bt_mcc_set_playing_order(struct bt_conn *conn, uint8_t order)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -2070,7 +2375,7 @@ int bt_mcc_set_playing_order(struct bt_conn *conn, uint8_t order)
 		return -EBUSY;
 	}
 
-	memcpy(cur_mcs_inst->write_buf, &order, sizeof(order));
+	(void)memcpy(cur_mcs_inst->write_buf, &order, sizeof(order));
 
 	cur_mcs_inst->write_params.offset = 0;
 	cur_mcs_inst->write_params.data = cur_mcs_inst->write_buf;
@@ -2092,7 +2397,7 @@ int bt_mcc_read_playing_orders_supported(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -2119,7 +2424,7 @@ int bt_mcc_read_media_state(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -2142,12 +2447,12 @@ int bt_mcc_read_media_state(struct bt_conn *conn)
 	return err;
 }
 
-int bt_mcc_send_cmd(struct bt_conn *conn, struct mpl_cmd cmd)
+int bt_mcc_send_cmd(struct bt_conn *conn, const struct mpl_cmd *cmd)
 {
 	int err;
-	int length = sizeof(cmd.opcode);
+	int length = sizeof(cmd->opcode);
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -2158,11 +2463,11 @@ int bt_mcc_send_cmd(struct bt_conn *conn, struct mpl_cmd cmd)
 		return -EBUSY;
 	}
 
-	memcpy(cur_mcs_inst->write_buf, &cmd.opcode, length);
-	if (cmd.use_param) {
-		length += sizeof(cmd.param);
-		memcpy(&cur_mcs_inst->write_buf[sizeof(cmd.opcode)], &cmd.param,
-		       sizeof(cmd.param));
+	(void)memcpy(cur_mcs_inst->write_buf, &cmd->opcode, length);
+	if (cmd->use_param) {
+		length += sizeof(cmd->param);
+		(void)memcpy(&cur_mcs_inst->write_buf[sizeof(cmd->opcode)], &cmd->param,
+		       sizeof(cmd->param));
 	}
 
 	cur_mcs_inst->write_params.offset = 0;
@@ -2171,7 +2476,7 @@ int bt_mcc_send_cmd(struct bt_conn *conn, struct mpl_cmd cmd)
 	cur_mcs_inst->write_params.handle = cur_mcs_inst->cp_handle;
 	cur_mcs_inst->write_params.func = mcs_write_cp_cb;
 
-	BT_HEXDUMP_DBG(cur_mcs_inst->write_params.data, sizeof(cmd),
+	BT_HEXDUMP_DBG(cur_mcs_inst->write_params.data, sizeof(*cmd),
 		       "Command sent");
 
 	err = bt_gatt_write(conn, &cur_mcs_inst->write_params);
@@ -2185,7 +2490,7 @@ int bt_mcc_read_opcodes_supported(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -2209,11 +2514,11 @@ int bt_mcc_read_opcodes_supported(struct bt_conn *conn)
 }
 
 #ifdef CONFIG_BT_MCC_OTS
-int bt_mcc_send_search(struct bt_conn *conn, struct mpl_search search)
+int bt_mcc_send_search(struct bt_conn *conn, const struct mpl_search *search)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -2224,15 +2529,15 @@ int bt_mcc_send_search(struct bt_conn *conn, struct mpl_search search)
 		return -EBUSY;
 	}
 
-	memcpy(cur_mcs_inst->write_buf, &search.search, search.len);
+	(void)memcpy(cur_mcs_inst->write_buf, &search->search, search->len);
 
 	cur_mcs_inst->write_params.offset = 0;
 	cur_mcs_inst->write_params.data = cur_mcs_inst->write_buf;
-	cur_mcs_inst->write_params.length = search.len;
+	cur_mcs_inst->write_params.length = search->len;
 	cur_mcs_inst->write_params.handle = cur_mcs_inst->scp_handle;
 	cur_mcs_inst->write_params.func = mcs_write_scp_cb;
 
-	BT_HEXDUMP_DBG(cur_mcs_inst->write_params.data, search.len,
+	BT_HEXDUMP_DBG(cur_mcs_inst->write_params.data, search->len,
 		       "Search sent");
 
 	err = bt_gatt_write(conn, &cur_mcs_inst->write_params);
@@ -2246,7 +2551,7 @@ int bt_mcc_read_search_results_obj_id(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -2274,7 +2579,7 @@ int bt_mcc_read_content_control_id(struct bt_conn *conn)
 {
 	int err;
 
-	CHECKIF(!conn) {
+	CHECKIF(!conn || !cur_mcs_inst) {
 		return -EINVAL;
 	}
 
@@ -2299,8 +2604,8 @@ int bt_mcc_read_content_control_id(struct bt_conn *conn)
 
 #ifdef CONFIG_BT_MCC_OTS
 
-void on_obj_selected(struct bt_conn *conn, int result,
-		     struct bt_otc_instance_t *otc_inst)
+void on_obj_selected(struct bt_ots_client *otc_inst,
+		     struct bt_conn *conn, int result)
 {
 	BT_DBG("Current object selected");
 	/* TODO: Read metadata here? */
@@ -2318,9 +2623,9 @@ void on_obj_selected(struct bt_conn *conn, int result,
 
 /* TODO: Merge the object callback functions into one */
 /* Use a notion of the "active" object, as done in mpl.c, for tracking  */
-int on_icon_content(struct bt_conn *conn, uint32_t offset, uint32_t len,
-		    uint8_t *data_p, bool is_complete,
-		    struct bt_otc_instance_t *otc_inst)
+int on_icon_content(struct bt_ots_client *otc_inst, struct bt_conn *conn,
+		    uint32_t offset, uint32_t len, uint8_t *data_p,
+		    bool is_complete)
 {
 	int cb_err = 0;
 
@@ -2348,13 +2653,13 @@ int on_icon_content(struct bt_conn *conn, uint32_t offset, uint32_t len,
 		net_buf_simple_reset(&otc_obj_buf);
 	}
 
-	return BT_OTC_CONTINUE;
+	return BT_OTS_CONTINUE;
 }
 
 #if CONFIG_BT_DEBUG_MCC
 struct track_seg_t {
 	uint8_t            name_len;
-	char               name[CONFIG_BT_MCS_SEGMENT_NAME_MAX];
+	char               name[CONFIG_BT_MCC_SEGMENT_NAME_MAX];
 	int32_t            pos;
 };
 
@@ -2390,11 +2695,11 @@ static void decode_track_segments(struct net_buf_simple *buff,
 
 			name = net_buf_simple_pull_mem(&tmp_buf, seg->name_len);
 
-			if (seg->name_len >= CONFIG_BT_MCS_SEGMENT_NAME_MAX) {
+			if (seg->name_len >= CONFIG_BT_MCC_SEGMENT_NAME_MAX) {
 				seg->name_len =
-					CONFIG_BT_MCS_SEGMENT_NAME_MAX - 1;
+					CONFIG_BT_MCC_SEGMENT_NAME_MAX - 1;
 			}
-			memcpy(seg->name, name, seg->name_len);
+			(void)memcpy(seg->name, name, seg->name_len);
 		}
 		seg->name[seg->name_len] = '\0';
 
@@ -2403,9 +2708,9 @@ static void decode_track_segments(struct net_buf_simple *buff,
 }
 #endif /* CONFIG_BT_DEBUG_MCC */
 
-int on_track_segments_content(struct bt_conn *conn, uint32_t offset,
-			      uint32_t len, uint8_t *data_p, bool is_complete,
-			      struct bt_otc_instance_t *otc_inst)
+int on_track_segments_content(struct bt_ots_client *otc_inst,
+			      struct bt_conn *conn, uint32_t offset,
+			      uint32_t len, uint8_t *data_p, bool is_complete)
 {
 	int cb_err = 0;
 
@@ -2431,7 +2736,7 @@ int on_track_segments_content(struct bt_conn *conn, uint32_t offset,
 		for (int i = 0; i < track_segments.cnt; i++) {
 			BT_DBG("Track segment %i:", i);
 			BT_DBG("\t-Name\t:%s",
-			       log_strdup(track_segments.segs[i].name));
+			       track_segments.segs[i].name);
 			BT_DBG("\t-Position\t:%d", track_segments.segs[i].pos);
 		}
 #endif /* CONFIG_BT_DEBUG_MCC */
@@ -2444,12 +2749,12 @@ int on_track_segments_content(struct bt_conn *conn, uint32_t offset,
 		net_buf_simple_reset(&otc_obj_buf);
 	}
 
-	return BT_OTC_CONTINUE;
+	return BT_OTS_CONTINUE;
 }
 
-int on_current_track_content(struct bt_conn *conn, uint32_t offset,
-			     uint32_t len, uint8_t *data_p, bool is_complete,
-			     struct bt_otc_instance_t *otc_inst)
+int on_current_track_content(struct bt_ots_client *otc_inst,
+			     struct bt_conn *conn, uint32_t offset,
+			     uint32_t len, uint8_t *data_p, bool is_complete)
 {
 	int cb_err = 0;
 
@@ -2476,12 +2781,12 @@ int on_current_track_content(struct bt_conn *conn, uint32_t offset,
 		net_buf_simple_reset(&otc_obj_buf);
 	}
 
-	return BT_OTC_CONTINUE;
+	return BT_OTS_CONTINUE;
 }
 
-int on_next_track_content(struct bt_conn *conn, uint32_t offset, uint32_t len,
-			  uint8_t *data_p, bool is_complete,
-			  struct bt_otc_instance_t *otc_inst)
+int on_next_track_content(struct bt_ots_client *otc_inst,
+			  struct bt_conn *conn, uint32_t offset, uint32_t len,
+			  uint8_t *data_p, bool is_complete)
 {
 	int cb_err = 0;
 
@@ -2508,7 +2813,7 @@ int on_next_track_content(struct bt_conn *conn, uint32_t offset, uint32_t len,
 		net_buf_simple_reset(&otc_obj_buf);
 	}
 
-	return BT_OTC_CONTINUE;
+	return BT_OTS_CONTINUE;
 }
 
 
@@ -2538,9 +2843,9 @@ static void decode_group(struct net_buf_simple *buff,
 }
 #endif /* CONFIG_BT_DEBUG_MCC */
 
-int on_parent_group_content(struct bt_conn *conn, uint32_t offset,
-			    uint32_t len, uint8_t *data_p, bool is_complete,
-			    struct bt_otc_instance_t *otc_inst)
+int on_parent_group_content(struct bt_ots_client *otc_inst,
+			    struct bt_conn *conn, uint32_t offset,
+			    uint32_t len, uint8_t *data_p, bool is_complete)
 {
 	int cb_err = 0;
 
@@ -2570,7 +2875,7 @@ int on_parent_group_content(struct bt_conn *conn, uint32_t offset,
 			(void)bt_ots_obj_id_to_str(group.ids[i].id, t,
 						   BT_OTS_OBJ_ID_STR_LEN);
 			BT_DBG("Object type: %d, object  ID: %s",
-			       group.ids[i].type, log_strdup(t));
+			       group.ids[i].type, t);
 		}
 #endif /* CONFIG_BT_DEBUG_MCC */
 
@@ -2581,12 +2886,12 @@ int on_parent_group_content(struct bt_conn *conn, uint32_t offset,
 		net_buf_simple_reset(&otc_obj_buf);
 	}
 
-	return BT_OTC_CONTINUE;
+	return BT_OTS_CONTINUE;
 }
 
-int on_current_group_content(struct bt_conn *conn, uint32_t offset,
-			     uint32_t len, uint8_t *data_p, bool is_complete,
-			     struct bt_otc_instance_t *otc_inst)
+int on_current_group_content(struct bt_ots_client *otc_inst,
+			     struct bt_conn *conn, uint32_t offset,
+			     uint32_t len, uint8_t *data_p, bool is_complete)
 {
 	int cb_err = 0;
 
@@ -2616,7 +2921,7 @@ int on_current_group_content(struct bt_conn *conn, uint32_t offset,
 			(void)bt_ots_obj_id_to_str(group.ids[i].id, t,
 						   BT_OTS_OBJ_ID_STR_LEN);
 			BT_DBG("Object type: %d, object  ID: %s",
-			       group.ids[i].type, log_strdup(t));
+			       group.ids[i].type, t);
 		}
 #endif /* CONFIG_BT_DEBUG_MCC */
 
@@ -2627,21 +2932,21 @@ int on_current_group_content(struct bt_conn *conn, uint32_t offset,
 		net_buf_simple_reset(&otc_obj_buf);
 	}
 
-	return BT_OTC_CONTINUE;
+	return BT_OTS_CONTINUE;
 }
 
-void on_object_metadata(struct bt_conn *conn, int err,
-			struct bt_otc_instance_t *otc_inst,
+void on_object_metadata(struct bt_ots_client *otc_inst,
+			struct bt_conn *conn, int err,
 			uint8_t metadata_read)
 {
 	BT_INFO("Object's meta data:");
-	BT_INFO("\tCurrent size\t:%u", otc_inst->cur_object.current_size);
+	BT_INFO("\tCurrent size\t:%u", otc_inst->cur_object.size.cur);
 
-	if (otc_inst->cur_object.current_size > otc_obj_buf.size) {
+	if (otc_inst->cur_object.size.cur > otc_obj_buf.size) {
 		BT_DBG("Object larger than allocated buffer");
 	}
 
-	bt_otc_metadata_display(&otc_inst->cur_object, 1);
+	bt_ots_metadata_display(&otc_inst->cur_object, 1);
 
 	if (mcc_cb && mcc_cb->otc_obj_metadata) {
 		mcc_cb->otc_obj_metadata(conn, err);
@@ -2652,8 +2957,12 @@ int bt_mcc_otc_read_object_metadata(struct bt_conn *conn)
 {
 	int err;
 
-	err = bt_otc_obj_metadata_read(conn, &cur_mcs_inst->otc,
-				       BT_OTC_METADATA_REQ_ALL);
+	CHECKIF(!conn || !cur_mcs_inst) {
+		return -EINVAL;
+	}
+
+	err = bt_ots_client_read_object_metadata(&cur_mcs_inst->otc, conn,
+						 BT_OTS_METADATA_REQ_ALL);
 	if (err) {
 		BT_DBG("Error reading the object: %d", err);
 	}
@@ -2665,11 +2974,15 @@ int bt_mcc_otc_read_object_metadata(struct bt_conn *conn)
 int bt_mcc_otc_read_icon_object(struct bt_conn *conn)
 {
 	int err;
+
+	CHECKIF(!conn || !cur_mcs_inst) {
+		return -EINVAL;
+	}
 	/* TODO: Add handling for busy - either MCS or OTS */
 
-	cur_mcs_inst->otc.cb->content_cb = on_icon_content;
+	cur_mcs_inst->otc.cb->obj_data_read = on_icon_content;
 
-	err = bt_otc_read(conn, &cur_mcs_inst->otc);
+	err = bt_ots_client_read_object_data(&cur_mcs_inst->otc, conn);
 	if (err) {
 		BT_DBG("Error reading the object: %d", err);
 	}
@@ -2681,12 +2994,15 @@ int bt_mcc_otc_read_track_segments_object(struct bt_conn *conn)
 {
 	int err;
 
+	CHECKIF(!conn || !cur_mcs_inst) {
+		return -EINVAL;
+	}
 	/* TODO: Add handling for busy - either MCS or OTS */
 
 	/* TODO: Assumes object is already selected */
-	cur_mcs_inst->otc.cb->content_cb = on_track_segments_content;
+	cur_mcs_inst->otc.cb->obj_data_read = on_track_segments_content;
 
-	err = bt_otc_read(conn, &cur_mcs_inst->otc);
+	err = bt_ots_client_read_object_data(&cur_mcs_inst->otc, conn);
 	if (err) {
 		BT_DBG("Error reading the object: %d", err);
 	}
@@ -2698,12 +3014,15 @@ int bt_mcc_otc_read_current_track_object(struct bt_conn *conn)
 {
 	int err;
 
+	CHECKIF(!conn || !cur_mcs_inst) {
+		return -EINVAL;
+	}
 	/* TODO: Add handling for busy - either MCS or OTS */
 
 	/* TODO: Assumes object is already selected */
-	cur_mcs_inst->otc.cb->content_cb = on_current_track_content;
+	cur_mcs_inst->otc.cb->obj_data_read = on_current_track_content;
 
-	err = bt_otc_read(conn, &cur_mcs_inst->otc);
+	err = bt_ots_client_read_object_data(&cur_mcs_inst->otc, conn);
 	if (err) {
 		BT_DBG("Error reading the object: %d", err);
 	}
@@ -2715,12 +3034,15 @@ int bt_mcc_otc_read_next_track_object(struct bt_conn *conn)
 {
 	int err;
 
+	CHECKIF(!conn || !cur_mcs_inst) {
+		return -EINVAL;
+	}
 	/* TODO: Add handling for busy - either MCS or OTS */
 
 	/* TODO: Assumes object is already selected */
-	cur_mcs_inst->otc.cb->content_cb = on_next_track_content;
+	cur_mcs_inst->otc.cb->obj_data_read = on_next_track_content;
 
-	err = bt_otc_read(conn, &cur_mcs_inst->otc);
+	err = bt_ots_client_read_object_data(&cur_mcs_inst->otc, conn);
 	if (err) {
 		BT_DBG("Error reading the object: %d", err);
 	}
@@ -2732,14 +3054,17 @@ int bt_mcc_otc_read_parent_group_object(struct bt_conn *conn)
 {
 	int err;
 
+	CHECKIF(!conn || !cur_mcs_inst) {
+		return -EINVAL;
+	}
 	/* TODO: Add handling for busy - either MCS or OTS */
 
 	/* TODO: Assumes object is already selected */
 
 	/* Reuse callback for current group */
-	cur_mcs_inst->otc.cb->content_cb = on_parent_group_content;
+	cur_mcs_inst->otc.cb->obj_data_read = on_parent_group_content;
 
-	err = bt_otc_read(conn, &cur_mcs_inst->otc);
+	err = bt_ots_client_read_object_data(&cur_mcs_inst->otc, conn);
 	if (err) {
 		BT_DBG("Error reading the object: %d", err);
 	}
@@ -2751,12 +3076,15 @@ int bt_mcc_otc_read_current_group_object(struct bt_conn *conn)
 {
 	int err;
 
+	CHECKIF(!conn || !cur_mcs_inst) {
+		return -EINVAL;
+	}
 	/* TODO: Add handling for busy - either MCS or OTS */
 
 	/* TODO: Assumes object is already selected */
-	cur_mcs_inst->otc.cb->content_cb = on_current_group_content;
+	cur_mcs_inst->otc.cb->obj_data_read = on_current_group_content;
 
-	err = bt_otc_read(conn, &cur_mcs_inst->otc);
+	err = bt_ots_client_read_object_data(&cur_mcs_inst->otc, conn);
 	if (err) {
 		BT_DBG("Error reading the object: %d", err);
 	}
@@ -2765,7 +3093,7 @@ int bt_mcc_otc_read_current_group_object(struct bt_conn *conn)
 }
 
 #if defined(CONFIG_BT_MCC_SHELL)
-struct bt_otc_instance_t *bt_mcc_otc_inst(void)
+struct bt_ots_client *bt_mcc_otc_inst(void)
 {
 	return &cur_mcs_inst->otc;
 }

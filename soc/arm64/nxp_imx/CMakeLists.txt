@@ -1,5 +1,5 @@
 #
-# Copyright 2022 NXP
+# Copyright (c) 2022, NXP
 #
 # SPDX-License-Identifier: Apache-2.0
 #

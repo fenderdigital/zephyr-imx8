@@ -4,18 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
+#include <zephyr/kernel.h>
 #include <string.h>
 #include <errno.h>
 #include <stdbool.h>
-#include <sys/atomic.h>
-#include <sys/util.h>
-#include <sys/byteorder.h>
+#include <zephyr/sys/atomic.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/sys/byteorder.h>
 
-#include <net/buf.h>
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/conn.h>
-#include <bluetooth/mesh.h>
+#include <zephyr/net/buf.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/mesh.h>
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_MESH_DEBUG_NET)
 #define LOG_MODULE_NAME bt_mesh_net
@@ -29,6 +29,7 @@
 #include "lpn.h"
 #include "friend.h"
 #include "proxy.h"
+#include "proxy_cli.h"
 #include "transport.h"
 #include "access.h"
 #include "foundation.h"
@@ -243,53 +244,47 @@ bool bt_mesh_iv_update(void)
 
 bool bt_mesh_net_iv_update(uint32_t iv_index, bool iv_update)
 {
-	if (atomic_test_bit(bt_mesh.flags, BT_MESH_IVU_IN_PROGRESS)) {
-		/* We're currently in IV Update mode */
+	/* Check if IV index should to be recovered. */
+	if (iv_index < bt_mesh.iv_index ||
+	    iv_index > bt_mesh.iv_index + 42) {
+		BT_ERR("IV Index out of sync: 0x%08x != 0x%08x",
+			iv_index, bt_mesh.iv_index);
+		return false;
+	}
 
-		if (iv_index != bt_mesh.iv_index) {
-			BT_WARN("IV Index mismatch: 0x%08x != 0x%08x",
-				iv_index, bt_mesh.iv_index);
+	if ((iv_index > bt_mesh.iv_index + 1) ||
+	    (iv_index == bt_mesh.iv_index + 1 &&
+	     (atomic_test_bit(bt_mesh.flags, BT_MESH_IVU_IN_PROGRESS) || !iv_update))) {
+		if (ivi_was_recovered &&
+		    (bt_mesh.ivu_duration < (2 * BT_MESH_IVU_MIN_HOURS))) {
+			BT_ERR("IV Index Recovery before minimum delay");
 			return false;
 		}
 
-		if (iv_update) {
-			/* Nothing to do */
-			BT_DBG("Already in IV Update in Progress state");
-			return false;
-		}
-	} else {
-		/* We're currently in Normal mode */
+		/* The Mesh profile specification allows to initiate an
+		 * IV Index Recovery procedure if previous IV update has
+		 * been missed. This allows the node to remain
+		 * functional.
+		 *
+		 * Upon receiving and successfully authenticating a
+		 * Secure Network beacon for a primary subnet whose
+		 * IV Index is 1 or more higher than the current known IV
+		 * Index, the node shall set its current IV Index and its
+		 * current IV Update procedure state from the values in
+		 * this Secure Network beacon.
+		 */
+		BT_WARN("Performing IV Index Recovery");
+		ivi_was_recovered = true;
+		bt_mesh_rpl_clear();
+		bt_mesh.iv_index = iv_index;
+		bt_mesh.seq = 0U;
 
-		if (iv_index == bt_mesh.iv_index) {
-			BT_DBG("Same IV Index in normal mode");
-			return false;
-		}
+		goto do_update;
+	}
 
-		if (iv_index < bt_mesh.iv_index ||
-		    iv_index > bt_mesh.iv_index + 42) {
-			BT_ERR("IV Index out of sync: 0x%08x != 0x%08x",
-			       iv_index, bt_mesh.iv_index);
-			return false;
-		}
-
-		if ((iv_index > bt_mesh.iv_index + 1) ||
-		    (iv_index == bt_mesh.iv_index + 1 && !iv_update)) {
-			if (ivi_was_recovered) {
-				BT_ERR("IV Index Recovery before minimum delay");
-				return false;
-			}
-			/* The Mesh profile specification allows to initiate an
-			 * IV Index Recovery procedure if previous IV update has
-			 * been missed. This allows the node to remain
-			 * functional.
-			 */
-			BT_WARN("Performing IV Index Recovery");
-			ivi_was_recovered = true;
-			bt_mesh_rpl_clear();
-			bt_mesh.iv_index = iv_index;
-			bt_mesh.seq = 0U;
-			goto do_update;
-		}
+	if (atomic_test_bit(bt_mesh.flags, BT_MESH_IVU_IN_PROGRESS) == iv_update) {
+		BT_DBG("No change for IV Update procedure");
+		return false;
 	}
 
 	if (!(IS_ENABLED(CONFIG_BT_MESH_IV_UPDATE_TEST) &&
@@ -561,6 +556,11 @@ int bt_mesh_net_send(struct bt_mesh_net_tx *tx, struct net_buf *buf,
 		goto done;
 	}
 
+	/* Deliver to GATT Proxy Servers if necessary. */
+	if (IS_ENABLED(CONFIG_BT_MESH_PROXY_CLIENT)) {
+		(void)bt_mesh_proxy_cli_relay(buf);
+	}
+
 	bt_mesh_adv_send(buf, cb, cb_data);
 
 done:
@@ -687,7 +687,7 @@ static void bt_mesh_net_relay(struct net_buf_simple *sbuf,
 	buf = bt_mesh_adv_create(BT_MESH_ADV_DATA, BT_MESH_RELAY_ADV,
 				 transmit, K_NO_WAIT);
 	if (!buf) {
-		BT_ERR("Out of relay buffers");
+		BT_DBG("Out of relay buffers");
 		return;
 	}
 
@@ -882,8 +882,15 @@ static void ivu_refresh(struct k_work *work)
 			store_iv(true);
 		}
 
-		k_work_reschedule(&bt_mesh.ivu_timer, BT_MESH_IVU_TIMEOUT);
-		return;
+		goto end;
+	}
+
+	/* Because the beacon may be cached, iv update or iv recovery
+	 * cannot be performed after 96 hours or 192 hours.
+	 * So we need clear beacon cache.
+	 */
+	if (!(bt_mesh.ivu_duration % BT_MESH_IVU_MIN_HOURS)) {
+		bt_mesh_subnet_foreach(bt_mesh_beacon_cache_clear);
 	}
 
 	if (atomic_test_bit(bt_mesh.flags, BT_MESH_IVU_IN_PROGRESS)) {
@@ -892,6 +899,9 @@ static void ivu_refresh(struct k_work *work)
 	} else if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
 		store_iv(true);
 	}
+
+end:
+	k_work_reschedule(&bt_mesh.ivu_timer, BT_MESH_IVU_TIMEOUT);
 }
 
 void bt_mesh_net_init(void)

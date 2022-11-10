@@ -7,12 +7,12 @@
  */
 
 
-#include <init.h>
-#include <sys/util.h>
-#include <bluetooth/hci.h>
-#include <drivers/bluetooth/hci_driver.h>
-#include "bluetooth/addr.h"
-#include <drivers/clock_control/stm32_clock_control.h>
+#include <zephyr/init.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/bluetooth/hci.h>
+#include <zephyr/drivers/bluetooth/hci_driver.h>
+#include <zephyr/bluetooth/addr.h>
+#include <zephyr/drivers/clock_control/stm32_clock_control.h>
 
 #include "app_conf.h"
 #include "stm32_wpan_common.h"
@@ -63,18 +63,21 @@ struct aci_set_ble_addr {
 	uint8_t value[6];
 } __packed;
 
+#ifdef CONFIG_BT_HCI_HOST
 #define ACI_WRITE_SET_TX_POWER_LEVEL       BT_OP(BT_OGF_VS, 0xFC0F)
 #define ACI_HAL_WRITE_CONFIG_DATA	   BT_OP(BT_OGF_VS, 0xFC0C)
+#define ACI_HAL_STACK_RESET		   BT_OP(BT_OGF_VS, 0xFC3B)
 
 #define HCI_CONFIG_DATA_PUBADDR_OFFSET		0
-#define HCI_CONFIG_DATA_RANDOM_ADDRESS_OFFSET	0x2E
-
 static bt_addr_t bd_addr_udn;
+#endif /* CONFIG_BT_HCI_HOST */
 
 /* Rx thread definitions */
 K_FIFO_DEFINE(ipm_rx_events_fifo);
 static K_KERNEL_STACK_DEFINE(ipm_rx_stack, CONFIG_BT_STM32_IPM_RX_STACK_SIZE);
 static struct k_thread ipm_rx_thread_data;
+
+static bool c2_started_flag;
 
 static void stm32wb_start_ble(void)
 {
@@ -393,7 +396,9 @@ static void start_ble_rf(void)
 		LL_RCC_ReleaseBackupDomainReset();
 	}
 
-#if STM32_LSE_CLOCK
+#if STM32_LSE_ENABLED
+	/* Configure driving capability */
+	LL_RCC_LSE_SetDriveCapability(STM32_LSE_DRIVING << RCC_BDCR_LSEDRV_Pos);
 	/* Select LSE clock */
 	LL_RCC_LSE_Enable();
 	while (!LL_RCC_LSE_IsReady()) {
@@ -423,6 +428,7 @@ static void start_ble_rf(void)
 	LL_RCC_SetCLK48ClockSource(LL_RCC_CLK48_CLKSOURCE_HSI48);
 }
 
+#ifdef CONFIG_BT_HCI_HOST
 bt_addr_t *bt_get_ble_addr(void)
 {
 	bt_addr_t *bd_addr;
@@ -496,13 +502,6 @@ static int bt_ipm_ble_init(void)
 	struct net_buf *buf, *rsp;
 	int err;
 
-	/* Send HCI_RESET */
-	err = bt_hci_cmd_send_sync(BT_HCI_OP_RESET, NULL, &rsp);
-	if (err) {
-		return err;
-	}
-	/* TDB: Something to do on reset complete? */
-	net_buf_unref(rsp);
 	err = bt_ipm_set_addr();
 	if (err) {
 		BT_ERR("Can't set BLE UID addr");
@@ -525,43 +524,11 @@ static int bt_ipm_ble_init(void)
 
 	return 0;
 }
+#endif /* CONFIG_BT_HCI_HOST */
 
-static int bt_ipm_open(void)
+static int c2_reset(void)
 {
-	int err;
-
-	err = bt_ipm_ble_init();
-	if (err) {
-		return err;
-	}
-
-	BT_DBG("IPM Channel Open Completed");
-
-	return 0;
-}
-
-static const struct bt_hci_driver drv = {
-	.name           = "BT IPM",
-	.bus            = BT_HCI_DRIVER_BUS_IPM,
-	.quirks         = BT_QUIRK_NO_RESET,
-	.open           = bt_ipm_open,
-	.send           = bt_ipm_send,
-};
-
-static int _bt_ipm_init(const struct device *unused)
-{
-	ARG_UNUSED(unused);
-
-	bt_hci_driver_register(&drv);
-
 	start_ble_rf();
-
-	/* Start RX thread */
-	k_thread_create(&ipm_rx_thread_data, ipm_rx_stack,
-			K_KERNEL_STACK_SIZEOF(ipm_rx_stack),
-			(k_thread_entry_t)bt_ipm_rx_thread, NULL, NULL, NULL,
-			K_PRIO_COOP(CONFIG_BT_DRIVER_RX_HIGH_PRIO),
-			0, K_NO_WAIT);
 
 	/* Take BLE out of reset */
 	ipcc_reset();
@@ -575,6 +542,96 @@ static int _bt_ipm_init(const struct device *unused)
 	BT_DBG("C2 unlocked");
 
 	stm32wb_start_ble();
+
+	c2_started_flag = true;
+
+	return 0;
+}
+
+static int bt_ipm_open(void)
+{
+	int err;
+
+	if (!c2_started_flag) {
+		/* C2 has been teared down. Reinit required */
+		SHCI_C2_Reinit();
+		while (LL_PWR_IsActiveFlag_C2DS() == 0) {
+		};
+
+		err = c2_reset();
+		if (err) {
+			return err;
+		}
+	}
+
+	/* Start RX thread */
+	k_thread_create(&ipm_rx_thread_data, ipm_rx_stack,
+			K_KERNEL_STACK_SIZEOF(ipm_rx_stack),
+			(k_thread_entry_t)bt_ipm_rx_thread, NULL, NULL, NULL,
+			K_PRIO_COOP(CONFIG_BT_DRIVER_RX_HIGH_PRIO),
+			0, K_NO_WAIT);
+
+#ifdef CONFIG_BT_HCI_HOST
+	err = bt_ipm_ble_init();
+	if (err) {
+		return err;
+	}
+#endif /* CONFIG_BT_HCI_HOST */
+
+	BT_DBG("IPM Channel Open Completed");
+
+	return 0;
+}
+
+#ifdef CONFIG_BT_HCI_HOST
+static int bt_ipm_close(void)
+{
+	int err;
+	struct net_buf *rsp;
+
+	err = bt_hci_cmd_send_sync(ACI_HAL_STACK_RESET, NULL, &rsp);
+	if (err) {
+		BT_ERR("IPM Channel Close Issue");
+		return err;
+	}
+	net_buf_unref(rsp);
+
+	/* Wait till C2DS set */
+	while (LL_PWR_IsActiveFlag_C2DS() == 0) {
+	};
+
+	c2_started_flag = false;
+
+	k_thread_abort(&ipm_rx_thread_data);
+
+	BT_DBG("IPM Channel Close Completed");
+
+	return err;
+}
+#endif /* CONFIG_BT_HCI_HOST */
+
+static const struct bt_hci_driver drv = {
+	.name           = "BT IPM",
+	.bus            = BT_HCI_DRIVER_BUS_IPM,
+	.open           = bt_ipm_open,
+#ifdef CONFIG_BT_HCI_HOST
+	.close          = bt_ipm_close,
+#endif
+	.send           = bt_ipm_send,
+};
+
+static int _bt_ipm_init(const struct device *unused)
+{
+	int err;
+
+	ARG_UNUSED(unused);
+
+	bt_hci_driver_register(&drv);
+
+	err = c2_reset();
+	if (err) {
+		return err;
+	}
 
 	return 0;
 }

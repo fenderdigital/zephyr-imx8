@@ -18,7 +18,7 @@
  * MIWU2. Together, they support a total of over 140 internal and/or external
  * wake-up input (WUI) sources.
  *
- * This driver uses device tree files to present the relationship bewteen
+ * This driver uses device tree files to present the relationship between
  * MIWU and the other devices in different npcx series. For npcx7 series,
  * it include:
  *  1. npcxn-miwus-wui-map.dtsi: it presents relationship between wake-up inputs
@@ -46,21 +46,28 @@
  *
  */
 
-#include <device.h>
-#include <kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/kernel.h>
 #include <soc.h>
-#include <sys/__assert.h>
-#include <irq_nextlevel.h>
-#include <drivers/gpio.h>
+#include <zephyr/sys/__assert.h>
+#include <zephyr/irq_nextlevel.h>
+#include <zephyr/drivers/gpio.h>
 
 #include "soc_miwu.h"
 #include "soc_gpio.h"
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(intc_miwu, LOG_LEVEL_ERR);
 
-/* MIWU module instances forward declaration */
-static const struct device *miwu_devs[];
+/* MIWU module instances */
+#define NPCX_MIWU_DEV(inst) DEVICE_DT_INST_GET(inst),
+
+static const struct device *const miwu_devs[] = {
+	DT_INST_FOREACH_STATUS_OKAY(NPCX_MIWU_DEV)
+};
+
+BUILD_ASSERT(ARRAY_SIZE(miwu_devs) == NPCX_MIWU_TABLE_COUNT,
+		"Size of miwu_devs array must equal to NPCX_MIWU_TABLE_COUNT");
 
 /* Driver config */
 struct intc_miwu_config {
@@ -136,14 +143,15 @@ static void intc_miwu_isr_pri(int wui_table, int wui_group)
 	uint8_t mask = NPCX_WKPND(base, wui_group) & NPCX_WKEN(base, wui_group);
 
 	/* Clear pending bits before dispatch ISR */
-	if (mask)
+	if (mask) {
 		NPCX_WKPCL(base, wui_group) = mask;
+	}
 
 	for (wui_bit = 0; wui_bit < 8; wui_bit++) {
 		if (mask & BIT(wui_bit)) {
 			LOG_DBG("miwu_isr %d %d %d!\n", wui_table,
 							wui_group, wui_bit);
-			/* Dispatch registed gpio and generic isrs */
+			/* Dispatch registered gpio and generic isrs */
 			intc_miwu_dispatch_gpio_isr(wui_table,
 							wui_group, wui_bit);
 			intc_miwu_dispatch_generic_isr(wui_table,
@@ -382,20 +390,10 @@ int npcx_miwu_manage_dev_callback(struct miwu_dev_callback *cb, bool set)
 			    NULL,					       \
 			    NULL, &miwu_config_##inst,                         \
 			    PRE_KERNEL_1,                                      \
-			    CONFIG_KERNEL_INIT_PRIORITY_OBJECTS, NULL);        \
+			    CONFIG_INTC_INIT_PRIORITY, NULL);                  \
 									       \
 	NPCX_MIWU_ISR_FUNC_IMPL(inst)                                          \
 									       \
 	NPCX_MIWU_INIT_FUNC_IMPL(inst)
 
 DT_INST_FOREACH_STATUS_OKAY(NPCX_MIWU_INIT)
-
-/* MIWU module instances */
-#define NPCX_MIWU_DEV(inst) DEVICE_DT_INST_GET(inst),
-
-static const struct device *miwu_devs[] = {
-	DT_INST_FOREACH_STATUS_OKAY(NPCX_MIWU_DEV)
-};
-
-BUILD_ASSERT(ARRAY_SIZE(miwu_devs) == NPCX_MIWU_TABLE_COUNT,
-		"Size of miwu_devs array must equal to NPCX_MIWU_TABLE_COUNT");
