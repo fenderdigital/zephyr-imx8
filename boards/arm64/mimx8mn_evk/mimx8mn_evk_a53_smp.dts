@@ -31,7 +31,7 @@
 	};
 
 	sram0: memory@93c00000 {
-		reg = <0x93c00000 DT_SIZE_M(1)>;
+		reg = <0x93c00000 DT_SIZE_M(16)>;
 	};
 };
 
