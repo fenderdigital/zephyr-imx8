@@ -14,6 +14,7 @@
 #include <zephyr/linker/sections.h>
 #include <zephyr/devicetree.h>
 
+#include <zephyr/linker/devicetree_regions.h>
 #include <zephyr/linker/linker-defs.h>
 #include <zephyr/linker/linker-tool.h>
 
@@ -62,6 +63,7 @@ MEMORY
     FLASH     (rx) : ORIGIN = ROM_ADDR, LENGTH = ROM_SIZE
     SRAM      (wx) : ORIGIN = RAM_ADDR, LENGTH = RAM_SIZE
     /* Used by and documented in include/linker/intlist.ld */
+    LINKER_DT_REGIONS()
     IDT_LIST  (wx) : ORIGIN = 0xFFFFF7FF, LENGTH = 2K
 }
 
