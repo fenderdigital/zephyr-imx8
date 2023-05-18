@@ -195,7 +195,10 @@ static bool is_recoverable(z_arch_esf_t *esf, uint64_t esr, uint64_t far,
 
 static void thread_suspend_cb(const struct k_thread *thread, void *user_data)
 {
-	k_thread_suspend(thread);
+	if(k_current_get () != thread)
+	{
+		k_thread_suspend(thread);
+	}
 }
 
 void z_arm64_fatal_error(unsigned int reason, z_arch_esf_t *esf)
