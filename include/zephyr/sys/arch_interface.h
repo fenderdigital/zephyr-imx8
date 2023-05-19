@@ -459,6 +459,14 @@ static inline uint32_t arch_proc_id(void);
  * This will invoke z_sched_ipi() on other CPUs in the system.
  */
 void arch_sched_ipi(void);
+
+/**
+ * Broadcast an interrupt to all CPUs
+ *
+ * This will invoke the fatal exception handler on other CPUs in the system/
+ */
+void arch_fatal_ipi(void);
+
 #endif /* CONFIG_SMP */
 
 /** @} */

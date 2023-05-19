@@ -193,22 +193,19 @@ static bool is_recoverable(z_arch_esf_t *esf, uint64_t esr, uint64_t far,
 	return false;
 }
 
-static void thread_suspend_cb(const struct k_thread *thread, void *user_data)
-{
-	if(k_current_get () != thread)
-	{
-		k_thread_suspend(thread);
-	}
-}
-
 void z_arm64_fatal_error(unsigned int reason, z_arch_esf_t *esf)
 {
-	k_thread_foreach(thread_suspend_cb, 0);
-
 	uint64_t esr = 0;
 	uint64_t elr = 0;
 	uint64_t far = 0;
 	uint64_t el;
+
+#if CONFIG_SMP
+	/* Prevent other threads from running during crash dump */
+	k_thread_priority_set(k_current_get(), CONFIG_PRIORITY_CEILING);
+	/* Raise fatal exceptions on other cores */
+	arch_fatal_ipi ();
+#endif
 
 	if (reason != K_ERR_SPURIOUS_IRQ) {
 		el = read_currentel();
