@@ -200,6 +200,13 @@ void z_arm64_fatal_error(unsigned int reason, z_arch_esf_t *esf)
 	uint64_t far = 0;
 	uint64_t el;
 
+#if CONFIG_SMP
+	/* Prevent other threads from running during crash dump */
+	k_thread_priority_set(k_current_get(), CONFIG_PRIORITY_CEILING);
+	/* Raise fatal exceptions on other cores */
+	arch_fatal_ipi ();
+#endif
+
 	if (reason != K_ERR_SPURIOUS_IRQ) {
 		el = read_currentel();
 
