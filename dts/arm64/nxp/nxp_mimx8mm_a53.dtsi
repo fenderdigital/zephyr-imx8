@@ -96,7 +96,7 @@
 	uart1: serial@30860000 {
 		compatible = "nxp,imx-iuart";
 		reg = <0x30860000 DT_SIZE_K(64)>;
-		interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
 		interrupt-names = "irq_0";
 		interrupt-parent = <&gic>;
 		clocks = <&ccm IMX_CCM_UART1_CLK 0x6c 24>;
@@ -116,7 +116,7 @@
 	uart3: serial@30880000 {
 		compatible = "nxp,imx-iuart";
 		reg = <0x30880000 DT_SIZE_K(64)>;
-		interrupts = <GIC_SPI 27 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupts = <GIC_SPI 28 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
 		interrupt-names = "irq_0";
 		interrupt-parent = <&gic>;
 		clocks = <&ccm IMX_CCM_UART3_CLK 0x6c 24>;
