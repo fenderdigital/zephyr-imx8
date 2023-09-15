@@ -25,25 +25,31 @@ static const struct arm_mmu_region mmu_regions[] = {
 			      DT_REG_SIZE(DT_NODELABEL(ccm)),
 			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
 
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(uart1), okay) 
 	MMU_REGION_FLAT_ENTRY("UART1",
 			      DT_REG_ADDR(DT_NODELABEL(uart1)),
 			      DT_REG_SIZE(DT_NODELABEL(uart1)),
 			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+#endif
 
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(uart2), okay) 
 	MMU_REGION_FLAT_ENTRY("UART2",
 			      DT_REG_ADDR(DT_NODELABEL(uart2)),
 			      DT_REG_SIZE(DT_NODELABEL(uart2)),
 			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+#endif
 
 	MMU_REGION_FLAT_ENTRY("ANA_PLL",
 			      DT_REG_ADDR(DT_NODELABEL(ana_pll)),
 			      DT_REG_SIZE(DT_NODELABEL(ana_pll)),
 			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
 
+#if DT_NODE_HAS_STATUS(DT_NODELABEL(uart4), okay) 
 	MMU_REGION_FLAT_ENTRY("UART4",
 			      DT_REG_ADDR(DT_NODELABEL(uart4)),
 			      DT_REG_SIZE(DT_NODELABEL(uart4)),
 			      MT_DEVICE_nGnRnE | MT_P_RW_U_NA | MT_NS),
+#endif
 
 	MMU_REGION_FLAT_ENTRY("IOMUXC",
 			      DT_REG_ADDR(DT_NODELABEL(iomuxc)),
