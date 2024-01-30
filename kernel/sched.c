@@ -178,6 +178,7 @@ static ALWAYS_INLINE struct k_thread *_priq_dumb_mask_best(sys_dlist_t *pq)
 }
 #endif
 
+#if defined(CONFIG_SCHED_DUMB) || defined(CONFIG_WAITQ_DUMB)
 static ALWAYS_INLINE void z_priq_dumb_add(sys_dlist_t *pq,
 					  struct k_thread *thread)
 {
@@ -195,6 +196,7 @@ static ALWAYS_INLINE void z_priq_dumb_add(sys_dlist_t *pq,
 
 	sys_dlist_append(pq, &thread->base.qnode_dlist);
 }
+#endif
 
 static ALWAYS_INLINE void *thread_runq(struct k_thread *thread)
 {
@@ -593,7 +595,9 @@ static bool thread_active_elsewhere(struct k_thread *thread)
 #ifdef CONFIG_SMP
 	int currcpu = _current_cpu->id;
 
-	for (int i = 0; i < CONFIG_MP_NUM_CPUS; i++) {
+	unsigned int num_cpus = CONFIG_MP_NUM_CPUS;
+
+	for (int i = 0; i < num_cpus; i++) {
 		if ((i != currcpu) &&
 		    (_kernel.cpus[i].current == thread)) {
 			return true;
@@ -755,17 +759,13 @@ static void add_thread_timeout(struct k_thread *thread, k_timeout_t timeout)
 	}
 }
 
-static void pend(struct k_thread *thread, _wait_q_t *wait_q,
-		 k_timeout_t timeout)
+static void pend_locked(struct k_thread *thread, _wait_q_t *wait_q,
+			k_timeout_t timeout)
 {
 #ifdef CONFIG_KERNEL_COHERENCE
 	__ASSERT_NO_MSG(wait_q == NULL || arch_mem_coherent(wait_q));
 #endif
-
-	LOCKED(&sched_spinlock) {
-		add_to_waitq_locked(thread, wait_q);
-	}
-
+	add_to_waitq_locked(thread, wait_q);
 	add_thread_timeout(thread, timeout);
 }
 
@@ -773,7 +773,9 @@ void z_pend_thread(struct k_thread *thread, _wait_q_t *wait_q,
 		   k_timeout_t timeout)
 {
 	__ASSERT_NO_MSG(thread == _current || is_thread_dummy(thread));
-	pend(thread, wait_q, timeout);
+	LOCKED(&sched_spinlock) {
+		pend_locked(thread, wait_q, timeout);
+	}
 }
 
 static inline void unpend_thread_no_timeout(struct k_thread *thread)
@@ -786,8 +788,41 @@ static inline void unpend_thread_no_timeout(struct k_thread *thread)
 ALWAYS_INLINE void z_unpend_thread_no_timeout(struct k_thread *thread)
 {
 	LOCKED(&sched_spinlock) {
-		unpend_thread_no_timeout(thread);
+		if (thread->base.pended_on != NULL) {
+			unpend_thread_no_timeout(thread);
+		}
 	}
+}
+
+void z_sched_wake_thread(struct k_thread *thread, bool is_timeout)
+{
+	LOCKED(&sched_spinlock) {
+		bool killed = ((thread->base.thread_state & _THREAD_DEAD) ||
+			       (thread->base.thread_state & _THREAD_ABORTING));
+
+#ifdef CONFIG_EVENTS
+		bool do_nothing = thread->no_wake_on_timeout && is_timeout;
+
+		thread->no_wake_on_timeout = false;
+
+		if (do_nothing) {
+			continue;
+		}
+#endif
+
+		if (!killed) {
+			/* The thread is not being killed */
+			if (thread->base.pended_on != NULL) {
+				unpend_thread_no_timeout(thread);
+			}
+			z_mark_thread_as_started(thread);
+			if (is_timeout) {
+				z_mark_thread_as_not_suspended(thread);
+			}
+			ready_thread(thread);
+		}
+	}
+
 }
 
 #ifdef CONFIG_SYS_CLOCK_EXISTS
@@ -797,25 +832,18 @@ void z_thread_timeout(struct _timeout *timeout)
 	struct k_thread *thread = CONTAINER_OF(timeout,
 					       struct k_thread, base.timeout);
 
-	LOCKED(&sched_spinlock) {
-		bool killed = ((thread->base.thread_state & _THREAD_DEAD) ||
-			       (thread->base.thread_state & _THREAD_ABORTING));
-
-		if (!killed) {
-			if (thread->base.pended_on != NULL) {
-				unpend_thread_no_timeout(thread);
-			}
-			z_mark_thread_as_started(thread);
-			z_mark_thread_as_not_suspended(thread);
-			ready_thread(thread);
-		}
-	}
+	z_sched_wake_thread(thread, true);
 }
 #endif
 
 int z_pend_curr_irqlock(uint32_t key, _wait_q_t *wait_q, k_timeout_t timeout)
 {
-	pend(_current, wait_q, timeout);
+	/* This is a legacy API for pre-switch architectures and isn't
+	 * correctly synchronized for multi-cpu use
+	 */
+	__ASSERT_NO_MSG(!IS_ENABLED(CONFIG_SMP));
+
+	pend_locked(_current, wait_q, timeout);
 
 #if defined(CONFIG_TIMESLICING) && defined(CONFIG_SWAP_NONATOMIC)
 	pending_current = _current;
@@ -838,8 +866,20 @@ int z_pend_curr(struct k_spinlock *lock, k_spinlock_key_t key,
 #if defined(CONFIG_TIMESLICING) && defined(CONFIG_SWAP_NONATOMIC)
 	pending_current = _current;
 #endif
-	pend(_current, wait_q, timeout);
-	return z_swap(lock, key);
+	__ASSERT_NO_MSG(sizeof(sched_spinlock) == 0 || lock != &sched_spinlock);
+
+	/* We do a "lock swap" prior to calling z_swap(), such that
+	 * the caller's lock gets released as desired.  But we ensure
+	 * that we hold the scheduler lock and leave local interrupts
+	 * masked until we reach the context swich.  z_swap() itself
+	 * has similar code; the duplication is because it's a legacy
+	 * API that doesn't expect to be called with scheduler lock
+	 * held.
+	 */
+	(void) k_spin_lock(&sched_spinlock);
+	pend_locked(_current, wait_q, timeout);
+	k_spin_release(lock);
+	return z_swap(&sched_spinlock, key);
 }
 
 struct k_thread *z_unpend1_no_timeout(_wait_q_t *wait_q)
@@ -1276,7 +1316,9 @@ void init_ready_q(struct _ready_q *rq)
 void z_sched_init(void)
 {
 #ifdef CONFIG_SCHED_CPU_MASK_PIN_ONLY
-	for (int i = 0; i < CONFIG_MP_NUM_CPUS; i++) {
+	unsigned int num_cpus = CONFIG_MP_NUM_CPUS;
+
+	for (int i = 0; i < num_cpus; i++) {
 		init_ready_q(&_kernel.cpus[i].ready_q);
 	}
 #else
@@ -1400,12 +1442,7 @@ static int32_t z_tick_sleep(k_ticks_t ticks)
 
 	__ASSERT(!arch_is_in_isr(), "");
 
-#ifndef CONFIG_TIMEOUT_64BIT
-	/* LOG subsys does not handle 64-bit values
-	 * https://github.com/zephyrproject-rtos/zephyr/issues/26246
-	 */
-	LOG_DBG("thread %p for %u ticks", _current, ticks);
-#endif
+	LOG_DBG("thread %p for %lu ticks", _current, (unsigned long)ticks);
 
 	/* wait of 0 ms is treated as a 'yield' */
 	if (ticks == 0) {
@@ -1896,4 +1933,29 @@ int z_sched_wait(struct k_spinlock *lock, k_spinlock_key_t key,
 		*data = _current->base.swap_data;
 	}
 	return ret;
+}
+
+int z_sched_waitq_walk(_wait_q_t  *wait_q,
+		       int (*func)(struct k_thread *, void *), void *data)
+{
+	struct k_thread *thread;
+	int  status = 0;
+
+	LOCKED(&sched_spinlock) {
+		_WAIT_Q_FOR_EACH(wait_q, thread) {
+
+			/*
+			 * Invoke the callback function on each waiting thread
+			 * for as long as there are both waiting threads AND
+			 * it returns 0.
+			 */
+
+			status = func(thread, data);
+			if (status != 0) {
+				break;
+			}
+		}
+	}
+
+	return status;
 }
