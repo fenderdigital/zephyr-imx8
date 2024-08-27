@@ -507,6 +507,13 @@ void arch_sched_broadcast_ipi(void);
  */
 void arch_sched_directed_ipi(uint32_t cpu_bitmap);
 
+/**
+ * Broadcast an interrupt to all CPUs
+ *
+ * This will invoke the fatal exception handler on other CPUs in the system/
+ */
+void arch_fatal_ipi(void);
+
 int arch_smp_init(void);
 
 #endif /* CONFIG_SMP */
