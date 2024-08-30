@@ -100,7 +100,7 @@
 		status = "okay";
 		pinctrl: pinctrl {
 			status = "okay";
-			compatible = "nxp,imx8mm-pinctrl";
+			compatible = "nxp,imx8m-pinctrl";
 		};
 	};
 
@@ -122,6 +122,8 @@
 		interrupt-names = "irq_0";
 		interrupt-parent = <&gic>;
 		clocks = <&ccm IMX_CCM_UART1_CLK 0x6c 24>;
+		rdc = <(RDC_DOMAIN_PERM(A53_DOMAIN_ID, RDC_DOMAIN_PERM_RW)|\
+		       RDC_DOMAIN_PERM(M4_DOMAIN_ID, RDC_DOMAIN_PERM_RW))>;
 		status = "disabled";
 	};
 
@@ -144,6 +146,8 @@
 		interrupt-names = "irq_0";
 		interrupt-parent = <&gic>;
 		clocks = <&ccm IMX_CCM_UART3_CLK 0x6c 24>;
+		rdc = <(RDC_DOMAIN_PERM(A53_DOMAIN_ID, RDC_DOMAIN_PERM_RW)|\
+		       RDC_DOMAIN_PERM(M4_DOMAIN_ID, RDC_DOMAIN_PERM_RW))>;
 		status = "disabled";
 	};
 

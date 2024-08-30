@@ -212,6 +212,25 @@ static void send_ipi(unsigned int ipi, uint32_t cpu_bitmap)
 	}
 }
 
+static void broadcast_ipi(unsigned int ipi)
+{
+	uint64_t mpidr = MPIDR_TO_CORE(GET_MPIDR());
+
+	/*
+	 * Send SGI to all cores except itself
+	 */
+	for (int i = 0; i < CONFIG_MP_NUM_CPUS; i++) {
+		uint64_t target_mpidr = cpu_node_list[i];
+		uint8_t aff0 = MPIDR_AFFLVL(target_mpidr, 0);
+
+		if (mpidr == target_mpidr) {
+			continue;
+		}
+
+		gic_raise_sgi(ipi, target_mpidr, 1 << aff0);
+	}
+}
+
 void sched_ipi_handler(const void *unused)
 {
 	ARG_UNUSED(unused);
