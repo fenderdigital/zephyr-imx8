@@ -23,6 +23,8 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
     - name: babblesim
       url-base: https://github.com/BabbleSim
+    - name: fmic
+      url-base: git@github.com:fenderdigital
 
   group-filter: [-babblesim, -optional]
 
@@ -31,7 +33,7 @@ manifest:
   projects:
     - name: acpica
       revision: 8d24867bc9c9d81c81eeac59391cda59333affd4
-      path: modules/lib/acpica
+      path: modules/lib/acpica 
     - name: bsim
       repo-path: babblesim-manifest
       revision: 9351ae1ad44864a49c351f9704f65f43046abeb0
@@ -198,6 +200,7 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
+      remote: fmic
       revision: 862e001504bd6e0a4feade6a718e9f973116849c
       path: modules/hal/nxp
       groups:
