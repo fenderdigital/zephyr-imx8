@@ -45,7 +45,7 @@ static void soc_rdc_init(void)
 
 static int soc_init(void)
 {
-	soc_rdc_init();
+	//soc_rdc_init();
 	return 0;
 }
 
