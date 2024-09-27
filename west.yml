@@ -24,7 +24,7 @@ manifest:
     - name: babblesim
       url-base: https://github.com/BabbleSim
     - name: fmic
-      url-base: git@github.com:fenderdigital
+      url-base: https://github.com/fenderdigital
 
   group-filter: [-babblesim, -optional]
 
