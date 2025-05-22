@@ -23,6 +23,8 @@ manifest:
       url-base: https://github.com/zephyrproject-rtos
     - name: babblesim
       url-base: https://github.com/BabbleSim
+    - name: fmic
+      url-base: https://github.com/fenderdigital
 
   group-filter: [-babblesim, -optional]
 
@@ -205,7 +207,8 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: fa2b503de28020a5c679920a4c0263920d161b2f
+      remote: fmic
+      revision: 6a316c1bf7b381845ae8af64208906f6ec332eab
       path: modules/hal/nxp
       groups:
         - hal
