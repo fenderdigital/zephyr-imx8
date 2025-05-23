@@ -71,6 +71,6 @@ __weak void soc_clock_init(void)
 
 void soc_prep_hook(void)
 {
-	soc_rdc_init();
+	//soc_rdc_init();
 	soc_clock_init();
 }
