@@ -32,7 +32,8 @@
 
 #define SGI_SCHED_IPI	0
 #define SGI_MMCFG_IPI	1
-#define SGI_FPU_IPI	2
+#define SGI_FPU_IPI		2
+#define SGI_FATAL_IPI 	3 /* Induce fatal exception handling */
 
 struct boot_params {
 	uint64_t mpid;
@@ -212,11 +213,49 @@ static void send_ipi(unsigned int ipi, uint32_t cpu_bitmap)
 	}
 }
 
+static void broadcast_ipi(unsigned int ipi)
+{
+	uint64_t mpidr = MPIDR_TO_CORE(GET_MPIDR());
+
+	/*
+	 * Send SGI to all cores except itself
+	 */
+	for (int i = 0; i < CONFIG_MP_MAX_NUM_CPUS; i++) {
+		uint64_t target_mpidr = cpu_node_list[i];
+		uint8_t aff0 = MPIDR_AFFLVL(target_mpidr, 0);
+
+		if (mpidr == target_mpidr) {
+			continue;
+		}
+
+		gic_raise_sgi(ipi, target_mpidr, 1 << aff0);
+	}
+}
+
 void sched_ipi_handler(const void *unused)
 {
 	ARG_UNUSED(unused);
 
 	z_sched_ipi();
+}
+
+void fatal_ipi_handler(const void *unused)
+{
+	ARG_UNUSED(unused);
+
+	/* This is triggered when another core crashes to bring the entire SMP
+	 * system to a stop for debugging.  
+	 */
+
+	(void)arch_irq_lock();
+	for (;;) {
+		/* Spin endlessly */
+	}
+}
+
+void arch_fatal_ipi(void)
+{
+	broadcast_ipi(SGI_FATAL_IPI);
 }
 
 void arch_sched_broadcast_ipi(void)
@@ -313,6 +352,8 @@ int arch_smp_init(void)
 	IRQ_CONNECT(SGI_FPU_IPI, IRQ_DEFAULT_PRIORITY, flush_fpu_ipi_handler, NULL, 0);
 	irq_enable(SGI_FPU_IPI);
 #endif
+	IRQ_CONNECT(SGI_FATAL_IPI, IRQ_DEFAULT_PRIORITY, fatal_ipi_handler, NULL, 0);
+	irq_enable(SGI_FATAL_IPI);
 
 	return 0;
 }
