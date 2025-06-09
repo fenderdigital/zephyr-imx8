@@ -104,10 +104,18 @@ struct usbd_msg {
  */
 static inline const char *usbd_msg_type_string(const enum usbd_msg_type type)
 {
+	/* By definition this is always true and generates a warning 
 	if (type >= 0 && type < USBD_MSG_MAX_NUMBER) {
 		return usbd_msg_type_list[type];
 	}
+	*/
 
+	/* Presume there is some means for type to be invalid */
+	int typeInt = (int)type;
+	/* Check if type is within the valid range */	
+	if (typeInt >= 0 && typeInt < USBD_MSG_MAX_NUMBER) {
+		return usbd_msg_type_list[typeInt];
+	}
 	return "?";
 }
 
