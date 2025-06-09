@@ -101,7 +101,7 @@ enum {
 	kFlexSpiSerialClk_166MHz = 8,
 	kFlexSpiSerialClk_200MHz = 9,
 };
-#elif defined(CONFIG_SOC_MIMXRT1062) || defined(CONFIG_SOC_MIMXRT1064)
+#elif defined(CONFIG_SOC_MIMXRT1061) || defined(CONFIG_SOC_MIMXRT1062) || defined(CONFIG_SOC_MIMXRT1064)
 enum {
 	kFlexSpiSerialClk_30MHz = 1,
 	kFlexSpiSerialClk_50MHz = 2,
