@@ -208,7 +208,7 @@ manifest:
         - hal
     - name: hal_nxp
       remote: fmic
-      revision: 6a316c1bf7b381845ae8af64208906f6ec332eab
+      revision: 1b6fa73e22e941b995c4618b95ba874881f7f48a
       path: modules/hal/nxp
       groups:
         - hal
