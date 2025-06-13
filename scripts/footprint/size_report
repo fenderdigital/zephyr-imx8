@@ -18,6 +18,7 @@ import sys
 import re
 from pathlib import Path
 import json
+import cxxfilt
 
 from packaging import version
 
@@ -38,6 +39,7 @@ from elftools.dwarf.locationlists import (
 if version.parse(elftools.__version__) < version.parse('0.24'):
     sys.exit("pyelftools is out of date, need version 0.24 or later")
 
+MAX_SYMBOL_CHARS=200
 
 # ELF section flags
 SHF_WRITE = 0x1
@@ -681,7 +683,9 @@ def generate_any_tree(symbol_dict, total_size, path_prefix):
             addr = get_symbol_addr(symbol['symbol'])
             section = symbol['section']
             for file in symbol['mapped_files']:
-                path = Path(file, name)
+                demangled_name = cxxfilt.demangle(name)
+                truncated_name = demangled_name[-MAX_SYMBOL_CHARS:]
+                path = Path(file, truncated_name)
                 if path.is_absolute():
                     has_node = False
 
@@ -744,12 +748,12 @@ def print_any_tree(root, total_size, depth):
     """
     Print the symbol tree.
     """
-    print('{:98s} {:>7s} {:>7s} {:11s} {:16s}'.format(
+    print('{:98} {:>7s} {:>7s} {:11s} {:16s}'.format(
         Fore.YELLOW + "Path", "Size", "%", " Address", "Section" + Fore.RESET))
     print('=' * 138)
     for row in RenderTree(root, childiter=node_sort, maxlevel=depth):
         f = len(row.pre) + len(row.node._name)
-        s = str(row.node._size).rjust(100-f)
+        s = str(row.node._size).rjust(MAX_SYMBOL_CHARS+50-f)
         percent = 100 * float(row.node._size) / float(total_size)
 
         hex_addr = "-"
