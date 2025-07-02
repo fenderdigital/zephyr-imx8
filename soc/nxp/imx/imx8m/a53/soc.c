@@ -17,6 +17,7 @@
 #define rdc_inst ((RDC_Type *)DT_REG_ADDR(DT_NODELABEL(rdc)))
 
 /* set RDC permission for peripherals */
+__attribute__((unused))
 static void soc_rdc_init(void)
 {
 	rdc_domain_assignment_t assignment = {0};
