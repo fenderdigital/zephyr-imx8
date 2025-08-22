@@ -226,7 +226,14 @@ static int fpga_ice40_load(const struct device *dev, uint32_t *image_ptr, uint32
 	fpga_ice40_crc_to_str(crc, data->info);
 	LOG_INF("Loaded image with CRC32 0x%08x", crc);
 
-	ret = device_init(config->bus.bus);
+unlock:
+	(void)gpio_pin_configure_dt(&config->creset, GPIO_OUTPUT_HIGH);
+	(void)gpio_pin_configure_dt(&config->bus.config.cs.gpio, GPIO_OUTPUT_HIGH);
+	(void)gpio_pin_configure_dt(&config_bitbang->clk, GPIO_DISCONNECTED);
+	(void)gpio_pin_configure_dt(&config_bitbang->pico, GPIO_DISCONNECTED);
+#ifdef CONFIG_PINCTRL
+	(void)pinctrl_apply_state(config_bitbang->pincfg, PINCTRL_STATE_DEFAULT);
+#endif /* CONFIG_PINCTRL */
 
 	if (ret != 0) {
 		LOG_ERR("failed to reinitialize the SPI device: %i", ret);

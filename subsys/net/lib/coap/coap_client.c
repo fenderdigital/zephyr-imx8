@@ -1129,16 +1129,6 @@ struct coap_client_option coap_client_option_initial_block2(void)
 	return block2;
 }
 
-bool coap_client_has_ongoing_exchange(struct coap_client *client)
-{
-	if (client == NULL) {
-		LOG_ERR("Invalid (NULL) Client");
-		return false;
-	}
-
-	return has_ongoing_exchange(client);
-}
-
 #define COAP_CLIENT_THREAD_PRIORITY CLAMP(CONFIG_COAP_CLIENT_THREAD_PRIORITY, \
 					  K_HIGHEST_APPLICATION_THREAD_PRIO, \
 					  K_LOWEST_APPLICATION_THREAD_PRIO)

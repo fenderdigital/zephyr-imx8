@@ -98,7 +98,7 @@ static inline uint32_t lpspi_next_tx_word(const struct device *dev, const uint8_
 	const uint8_t *byte = buf + offset;
 	uint32_t next_word = 0;
 
-	for (uint8_t i = 0; i < max_bytes; i++) {
+	for (uint8_t i = 0; i < num_bytes; i++) {
 		next_word |= byte[i] << (BITS_PER_BYTE * i);
 	}
 
@@ -344,10 +344,7 @@ static int transceive(const struct device *dev, const struct spi_config *spi_cfg
 
 	base->IER |= LPSPI_IER_TDIE_MASK | LPSPI_IER_RDIE_MASK;
 
-	ret = spi_context_wait_for_completion(ctx);
-	if (ret >= 0) {
-		return ret;
-	}
+	return spi_context_wait_for_completion(ctx);
 
 error:
 	spi_context_release(ctx, ret);
