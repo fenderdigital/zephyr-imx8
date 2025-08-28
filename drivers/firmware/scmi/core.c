@@ -116,6 +116,7 @@ static int scmi_send_message_pre_kernel(struct scmi_protocol *proto,
 	return ret;
 }
 
+#ifndef CONFIG_ARM_SCMI_USE_POLLING
 static int scmi_send_message_post_kernel(struct scmi_protocol *proto,
 					 struct scmi_message *msg,
 					 struct scmi_message *reply)
@@ -157,6 +158,7 @@ out_release_mutex:
 
 	return ret;
 }
+#endif
 
 int scmi_send_message(struct scmi_protocol *proto, struct scmi_message *msg,
 		      struct scmi_message *reply)
@@ -169,11 +171,15 @@ int scmi_send_message(struct scmi_protocol *proto, struct scmi_message *msg,
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_ARM_SCMI_USE_POLLING
+	return scmi_send_message_pre_kernel(proto, msg, reply);
+#else
 	if (k_is_pre_kernel()) {
 		return scmi_send_message_pre_kernel(proto, msg, reply);
 	} else {
 		return scmi_send_message_post_kernel(proto, msg, reply);
 	}
+#endif
 }
 
 static int scmi_core_protocol_setup(const struct device *transport)
