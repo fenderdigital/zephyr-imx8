@@ -12,9 +12,9 @@ config ARM_SCMI_CLK_HELPERS
 
 config ARM_SCMI_USE_POLLING
 	bool "Use polling at SCMI interface"
-	default y 
+	default y
 	depends on DT_HAS_ARM_SCMI_ENABLED
-	help 
+	help
 	  Use polling for scmi interface (no interrupts)
 
 config ARM_SCMI_MAILBOX_TRANSPORT
