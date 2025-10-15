@@ -75,7 +75,7 @@ def sanitize_func_name(name):
     if match:
         return match.group(0)
     else:
-        log.error(f"Failed to sanitize function name: {name}")
+        log.debug(f"Failed to sanitize function name: {name}")
 
     return name
 
