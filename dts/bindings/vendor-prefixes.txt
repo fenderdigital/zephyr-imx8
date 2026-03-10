@@ -518,6 +518,7 @@ peacefair	Ningbo Peacefair Electronic Technology Co., Ltd
 peregrine	Peregrine Consultoria e Servicos
 pericom	Pericom Technology Inc.
 pervasive	Pervasive Displays, Inc.
+pep	FMIC Portable Embedded Platform
 phicomm	PHICOMM Co., Ltd.
 phosense	Beijing Phosense Electronic Technology Co., Ltd.
 phytec	PHYTEC
