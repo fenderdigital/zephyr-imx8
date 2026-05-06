@@ -20,6 +20,15 @@ properties:
       the order of the nodes matters. The first node for gpio1 will be used
       as the pinmux for gpio0, port 0.
 
+  nxp,irq-sel:
+    type: int
+    default: 0
+    description: |
+      RGPIO interrupt channel selection (IRQS field in ICR registers).
+      Channel 0 uses ISFR[0] and the first interrupt in the interrupts
+      property. Channel 1 uses ISFR[1] and the second interrupt.
+      Defaults to 0.
+
   "#gpio-cells":
     const: 2
 

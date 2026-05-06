@@ -29,6 +29,7 @@ struct mcux_rgpio_config {
 
 	const struct pinctrl_soc_pinmux *pin_muxes;
 	uint8_t mux_count;
+	uint8_t irq_sel; /* RGPIO interrupt channel: 0 -> ISFR[0], 1 -> ISFR[1] */
 };
 
 struct mcux_rgpio_data {
@@ -216,7 +217,7 @@ static int mcux_rgpio_pin_interrupt_configure(const struct device *dev,
 		return -ENOTSUP;
 	}
 
-	irqs = 0; /* only irq0 is used for irq */
+	irqs = config->irq_sel;
 
 	if (mode == GPIO_INT_MODE_DISABLED) {
 		irqc = kRGPIO_InterruptOrDMADisabled;
@@ -258,11 +259,12 @@ static int mcux_rgpio_manage_callback(const struct device *dev,
 static void mcux_rgpio_port_isr(const struct device *dev)
 {
 	RGPIO_Type *base = (RGPIO_Type *)DEVICE_MMIO_NAMED_GET(dev, reg_base);
+	const struct mcux_rgpio_config *config = dev->config;
 	struct mcux_rgpio_data *data = dev->data;
 	uint32_t int_flags;
 
-	int_flags = base->ISFR[0]; /* Notice: only irq0 is used for now */
-	base->ISFR[0] = int_flags;
+	int_flags = base->ISFR[config->irq_sel];
+	base->ISFR[config->irq_sel] = int_flags; /* W1C */
 
 	gpio_fire_callbacks(&data->callbacks, dev, int_flags);
 }
@@ -309,6 +311,7 @@ static DEVICE_API(gpio, mcux_rgpio_driver_api) = {
 		},							\
 		DEVICE_MMIO_NAMED_ROM_INIT(reg_base, DT_DRV_INST(n)), \
 		MCUX_RGPIO_PIN_INIT(n)					\
+		.irq_sel = DT_INST_PROP_OR(n, nxp_irq_sel, 0),		\
 	};								\
 									\
 	static struct mcux_rgpio_data mcux_rgpio_##n##_data;		\
