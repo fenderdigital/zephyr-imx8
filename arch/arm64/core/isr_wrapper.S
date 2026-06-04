@@ -64,6 +64,15 @@ SECTION_FUNC(TEXT, _isr_wrapper)
 	bl	z_soc_irq_get_active
 #endif /* !CONFIG_ARM_CUSTOM_INTERRUPT_CONTROLLER */
 
+#ifdef CONFIG_PEP_OS_INTERRUPT_TRACE
+	/* Save IRQ on stack across our trace call.
+	 * Cannot use x19 — exception entry doesn't save callee-saved
+	 * registers, so clobbering x19 would corrupt the interrupted thread. */
+	stp	x0, xzr, [sp, #-16]!
+	bl	pep_isr_trace_enter
+	ldp	x0, xzr, [sp], #16
+#endif
+
 #if CONFIG_GIC_VER >= 3
 	/*
 	 * Ignore Special INTIDs 1020..1023 see 2.2.1 of Arm Generic Interrupt Controller
@@ -106,6 +115,10 @@ spurious_continue:
 #else
 	bl	z_soc_irq_eoi
 #endif /* !CONFIG_ARM_CUSTOM_INTERRUPT_CONTROLLER */
+
+#ifdef CONFIG_PEP_OS_INTERRUPT_TRACE
+	bl	pep_isr_trace_exit
+#endif
 
 #ifdef CONFIG_TRACING
 	bl	sys_trace_isr_exit
